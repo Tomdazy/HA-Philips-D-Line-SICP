@@ -8,6 +8,5 @@ git push --all
 git add .
 git commit -m "commit message"
 git tag v1.2.3
-git push --all
 pit push origin v1.2.3 --all
 ```
