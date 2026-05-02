@@ -149,14 +149,31 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator):
         """Fetch current display state."""
         try:
             power = await self.client.async_get_power()
-            if power:
-                volume     = await self.client.async_get_volume()
-                muted      = await self.client.async_get_mute()
-                source     = await self.client.async_get_input()
+
+            # Always attempt to fetch full state — some D-Line models respond
+            # to volume/source queries even while in standby. Fall back to None
+            # gracefully if the display refuses.
+            volume = brightness = contrast = source = muted = None
+            try:
+                volume = await self.client.async_get_volume()
+            except SICPError:
+                pass
+            try:
+                muted = await self.client.async_get_mute()
+            except SICPError:
+                pass
+            try:
+                source = await self.client.async_get_input()
+            except SICPError:
+                pass
+            try:
                 brightness = await self.client.async_get_brightness()
-                contrast   = await self.client.async_get_contrast()
-            else:
-                volume = muted = source = brightness = contrast = None
+            except SICPError:
+                pass
+            try:
+                contrast = await self.client.async_get_contrast()
+            except SICPError:
+                pass
 
             return {
                 "power":      power,

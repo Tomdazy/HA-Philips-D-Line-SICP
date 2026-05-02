@@ -115,7 +115,7 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         data = self.coordinator.data or {}
         if data.get("power"):
             return MediaPlayerState.ON
-        return MediaPlayerState.STANDBY
+        return MediaPlayerState.OFF
 
     @property
     def volume_level(self) -> float | None:
@@ -163,24 +163,29 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         await self._call(self._client.async_set_power, False)
 
     async def async_mute_volume(self, mute: bool) -> None:
+        await self._ensure_on()
         await self._call(self._client.async_set_mute, mute)
 
     async def async_set_volume_level(self, volume: float) -> None:
+        await self._ensure_on()
         span = self._vol_max - self._vol_min
         level = round(self._vol_min + volume * span)
         await self._call(self._client.async_set_volume, level)
 
     async def async_volume_up(self) -> None:
+        await self._ensure_on()
         data = self.coordinator.data or {}
         current = data.get("volume") or self._vol_min
         await self._call(self._client.async_set_volume, min(self._vol_max, current + 2))
 
     async def async_volume_down(self) -> None:
+        await self._ensure_on()
         data = self.coordinator.data or {}
         current = data.get("volume") or self._vol_min
         await self._call(self._client.async_set_volume, max(self._vol_min, current - 2))
 
     async def async_select_source(self, source: str) -> None:
+        await self._ensure_on()
         code = self._source_map.get(source)
         if code is None:
             _LOGGER.warning("Unknown source: %s", source)
@@ -197,8 +202,15 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         await self._call(self._client.async_set_contrast, contrast)
 
     # ──────────────────────────────────────────
-    # Helper
+    # Helpers
     # ──────────────────────────────────────────
+
+    async def _ensure_on(self) -> None:
+        """Power on the display if it is currently off."""
+        data = self.coordinator.data or {}
+        if not data.get("power"):
+            _LOGGER.debug("Display is off, powering on before command")
+            await self._call(self._client.async_set_power, True)
 
     async def _call(self, method, *args) -> None:
         """Call a SICP method, refresh coordinator, handle errors."""
