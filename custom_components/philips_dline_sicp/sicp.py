@@ -133,14 +133,20 @@ class PhilipsSICP:
                 asyncio.open_connection(self.host, self.port),
                 timeout=CONNECT_TIMEOUT,
             )
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (OSError, TimeoutError, asyncio.TimeoutError) as exc:
             raise SICPConnectError(f"Cannot connect to {self.host}:{self.port}: {exc}") from exc
 
         try:
             writer.write(packet)
             await writer.drain()
 
-            reply = await asyncio.wait_for(reader.read(64), timeout=READ_TIMEOUT)
+            try:
+                reply = await asyncio.wait_for(reader.read(64), timeout=READ_TIMEOUT)
+            except (TimeoutError, asyncio.TimeoutError, asyncio.CancelledError) as exc:
+                raise SICPTimeoutError(
+                    f"No reply from display {self.host} within {READ_TIMEOUT}s"
+                ) from exc
+
             _LOGGER.debug("SICP ← %s", reply.hex())
 
             if not reply:
@@ -218,5 +224,5 @@ class PhilipsSICP:
         try:
             await self.async_get_power()
             return True
-        except SICPError:
+        except (SICPError, TimeoutError, asyncio.TimeoutError, asyncio.CancelledError, OSError):
             return False

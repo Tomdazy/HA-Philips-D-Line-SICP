@@ -88,6 +88,8 @@ class PhilipsDLineSICPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
             except SICPError:
                 errors["base"] = "cannot_connect"
+            except (TimeoutError, OSError):
+                errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected error during setup")
                 errors["base"] = "unknown"
