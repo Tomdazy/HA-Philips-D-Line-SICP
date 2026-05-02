@@ -1,0 +1,6 @@
+{
+  "name": "Philips D-Line SICP",
+  "description": "Control Philips D-Line signage displays via SICP over TCP:5000",
+  "homeassistant": "2024.1.0",
+  "hacs": "1.32.0"
+}

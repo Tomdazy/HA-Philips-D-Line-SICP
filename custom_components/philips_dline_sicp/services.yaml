@@ -1,0 +1,35 @@
+set_brightness:
+  name: Set Brightness
+  description: Règle la luminosité du moniteur Philips D-Line (0–100).
+  target:
+    entity:
+      domain: media_player
+      integration: philips_dline_sicp
+  fields:
+    brightness:
+      name: Luminosité
+      description: Valeur de luminosité de 0 à 100.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+
+set_contrast:
+  name: Set Contrast
+  description: Règle le contraste du moniteur Philips D-Line (0–100).
+  target:
+    entity:
+      domain: media_player
+      integration: philips_dline_sicp
+  fields:
+    contrast:
+      name: Contraste
+      description: Valeur de contraste de 0 à 100.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"

@@ -1,0 +1,49 @@
+{
+  "config": {
+    "title": "Philips D-Line SICP",
+    "step": {
+      "user": {
+        "title": "Connexion au moniteur",
+        "description": "Entrez les paramètres réseau du moniteur Philips D-Line. Assurez-vous que le contrôle réseau (RJ45 / SICP) est activé dans le menu OSD.",
+        "data": {
+          "host": "Adresse IP",
+          "port": "Port TCP (défaut 5000)",
+          "monitor_id": "Monitor ID (OSD → Advanced Option)",
+          "group_id": "Group ID",
+          "include_group": "Inclure l'octet Group dans les trames"
+        }
+      },
+      "options": {
+        "title": "Options du moniteur",
+        "data": {
+          "poll_interval": "Intervalle de polling (secondes, 0 = désactivé)",
+          "volume_min": "Volume minimum",
+          "volume_max": "Volume maximum",
+          "expose_brightness": "Exposer la luminosité en attribut",
+          "expose_contrast": "Exposer le contraste en attribut"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre le moniteur. Vérifiez l'IP, le port 5000 et que le contrôle réseau est activé.",
+      "unknown": "Erreur inattendue. Consultez les journaux."
+    },
+    "abort": {
+      "already_configured": "Ce moniteur est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options du moniteur",
+        "data": {
+          "poll_interval": "Intervalle de polling (secondes, 0 = désactivé)",
+          "volume_min": "Volume minimum",
+          "volume_max": "Volume maximum",
+          "expose_brightness": "Exposer la luminosité en attribut",
+          "expose_contrast": "Exposer le contraste en attribut"
+        }
+      }
+    }
+  }
+}
