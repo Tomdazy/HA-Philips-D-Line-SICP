@@ -200,33 +200,36 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator):
         """Fetch current display state."""
         try:
             power = await self.client.async_get_power()
+            _LOGGER.debug("Poll power=%s", power)
 
-            # Always attempt to fetch full state — some D-Line models respond
-            # to volume/source queries even while in standby. Fall back to None
-            # gracefully if the display refuses.
             volume = brightness = contrast = source = muted = None
+
             try:
                 volume = await self.client.async_get_volume()
-            except SICPError:
-                pass
+            except SICPError as exc:
+                _LOGGER.debug("Poll volume failed: %s", exc)
+
             try:
                 muted = await self.client.async_get_mute()
-            except SICPError:
-                pass
+            except SICPError as exc:
+                _LOGGER.debug("Poll mute failed: %s", exc)
+
             try:
                 source = await self.client.async_get_input()
-            except SICPError:
-                pass
+            except SICPError as exc:
+                _LOGGER.debug("Poll source failed: %s", exc)
+
             try:
                 brightness = await self.client.async_get_brightness()
-            except SICPError:
-                pass
+            except SICPError as exc:
+                _LOGGER.debug("Poll brightness failed: %s", exc)
+
             try:
                 contrast = await self.client.async_get_contrast()
-            except SICPError:
-                pass
+            except SICPError as exc:
+                _LOGGER.debug("Poll contrast failed: %s", exc)
 
-            return {
+            result = {
                 "power":      power,
                 "volume":     volume,
                 "muted":      muted,
@@ -234,5 +237,8 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator):
                 "brightness": brightness,
                 "contrast":   contrast,
             }
+            _LOGGER.debug("Poll result: %s", result)
+            return result
+
         except SICPError as exc:
             raise UpdateFailed(f"SICP error: {exc}") from exc

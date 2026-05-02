@@ -90,8 +90,8 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
 
         self._attr_source_list = list(self._source_map.keys())
 
-        self._vol_min = config.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN)
-        self._vol_max = config.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX)
+        self._vol_min = int(config.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN))
+        self._vol_max = int(config.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX))
 
         self._expose_brightness = config.get(CONF_EXPOSE_BRIGHTNESS, DEFAULT_EXPOSE_BRIGHTNESS)
         self._expose_contrast   = config.get(CONF_EXPOSE_CONTRAST, DEFAULT_EXPOSE_CONTRAST)
@@ -126,7 +126,16 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
         span = self._vol_max - self._vol_min
         if span <= 0:
             return 0.0
+        # raw est la valeur absolue SICP (0-100), on la ramène à 0.0-1.0
         return max(0.0, min(1.0, (raw - self._vol_min) / span))
+
+    @property
+    def volume_step(self) -> float:
+        """Pas du slider : 2 unités SICP ramenées à l'échelle 0-1."""
+        span = self._vol_max - self._vol_min
+        if span <= 0:
+            return 0.02
+        return 2.0 / span
 
     @property
     def is_volume_muted(self) -> bool | None:
@@ -168,8 +177,13 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
 
     async def async_set_volume_level(self, volume: float) -> None:
         await self._ensure_on()
-        span = self._vol_max - self._vol_min
-        level = round(self._vol_min + volume * span)
+        span  = self._vol_max - self._vol_min
+        level = int(round(self._vol_min + volume * span))
+        level = max(self._vol_min, min(self._vol_max, level))
+        _LOGGER.debug(
+            "set_volume_level: HA=%.3f → SICP=%d (min=%d max=%d)",
+            volume, level, self._vol_min, self._vol_max,
+        )
         await self._call(self._client.async_set_volume, level)
 
     async def async_volume_up(self) -> None:
@@ -206,11 +220,15 @@ class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
     # ──────────────────────────────────────────
 
     async def _ensure_on(self) -> None:
-        """Power on the display if it is currently off."""
+        """Allume l'écran s'il est en veille, sans déclencher de refresh."""
         data = self.coordinator.data or {}
-        if not data.get("power"):
-            _LOGGER.debug("Display is off, powering on before command")
-            await self._call(self._client.async_set_power, True)
+        # Si power est explicitement False, on allume. Si None (inconnu), on laisse passer.
+        if data.get("power") is False:
+            _LOGGER.debug("Écran éteint, allumage avant commande")
+            try:
+                await self._client.async_set_power(True)
+            except SICPError as exc:
+                _LOGGER.warning("Impossible d'allumer l'écran : %s", exc)
 
     async def _call(self, method, *args) -> None:
         """Call a SICP method, refresh coordinator, handle errors."""

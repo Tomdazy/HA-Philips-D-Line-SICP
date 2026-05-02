@@ -1,7 +1,7 @@
 {
   "domain": "philips_dline_sicp",
   "name": "Philips D-Line SICP",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "documentation": "https://github.com/Tomdazy/ha-philips-dline-sicp",
   "issue_tracker": "https://github.com/Tomdazy/ha-philips-dline-sicp/issues",
   "codeowners": ["@Tomdazy"],
