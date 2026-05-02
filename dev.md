@@ -1,5 +1,5 @@
-Pour pousser, ne pas oublier de faire --follow-tags. Pour l'automatiser :
+Pour pousser, ne pas oublier de faire --all. :
 
 ```bash
-git config --global push.followTags true
+git push --all
 ```

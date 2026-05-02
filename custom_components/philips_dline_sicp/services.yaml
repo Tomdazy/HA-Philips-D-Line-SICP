@@ -33,3 +33,23 @@ set_contrast:
           min: 0
           max: 100
           unit_of_measurement: "%"
+
+send_raw_command:
+  name: Send Raw SICP Command (diagnostic)
+  description: >
+    Envoie une commande SICP brute et loggue la réponse complète.
+    Utile pour déboguer les codes de commande de votre firmware.
+    Exemple : cmd=0x45 data="" pour interroger le volume.
+  fields:
+    cmd:
+      name: Command byte (hex)
+      description: "Octet de commande en hexadécimal, ex: '0x45'"
+      required: true
+      selector:
+        text:
+    data:
+      name: Data bytes (hex, optionnel)
+      description: "Octets de données en hex sans espaces, ex: '02' pour envoyer 0x02"
+      required: false
+      selector:
+        text:

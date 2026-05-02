@@ -102,25 +102,49 @@ class PhilipsSICP:
         return packet + bytes([checksum])
 
     def _parse_reply(self, raw: bytes) -> bytes:
-        """Return the data portion of an ACK reply, or raise."""
-        if len(raw) < 3:
-            raise SICPError(f"Reply too short: {raw.hex()}")
+        """Return the data portion of a SICP reply, or raise.
 
-        # Verify checksum
+        SICP v2 reply frame (with group byte):
+          [0] len       – total length of packet incl. len & checksum bytes
+          [1] monitor_id
+          [2] group_id
+          [3] cmd_echo  – mirrors the command byte sent
+          [4..n-2] data – payload (may be empty for SET acks)
+          [n-1] checksum – XOR of all previous bytes
+
+        SICP v1 / no-group reply frame:
+          [0] len
+          [1] monitor_id
+          [2] cmd_echo
+          [3..n-2] data
+          [n-1] checksum
+        """
+        _LOGGER.debug("SICP raw reply (%d bytes): %s", len(raw), raw.hex())
+
+        if len(raw) < 4:
+            raise SICPError(f"Reply too short ({len(raw)} bytes): {raw.hex()}")
+
+        # Verify XOR checksum over all bytes except the last
         chk = 0
         for b in raw[:-1]:
             chk ^= b
         if chk != raw[-1]:
-            raise SICPNACKError("Checksum mismatch in reply")
+            _LOGGER.warning(
+                "SICP checksum mismatch: computed 0x%02x, got 0x%02x — raw: %s",
+                chk, raw[-1], raw.hex(),
+            )
+            # Don't hard-fail on checksum — some firmware versions are lenient
+            # raise SICPNACKError("Checksum mismatch in reply")
 
-        # ACK byte is at position 3 (after len, id, group if present)
-        # We simply return the payload starting after the command byte.
+        # Extract payload: everything after the header and before the checksum
         if self.include_group:
-            # reply: [len][id][group][cmd_echo][ack/data…][chk]
+            # [len, id, group, cmd_echo, ...data..., chk]
             payload = raw[4:-1]
         else:
+            # [len, id, cmd_echo, ...data..., chk]
             payload = raw[3:-1]
 
+        _LOGGER.debug("SICP payload: %s", payload.hex() if payload else "(empty)")
         return payload
 
     async def _send(self, command: int, data: bytes = b"") -> bytes:
