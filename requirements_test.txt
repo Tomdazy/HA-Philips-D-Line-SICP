@@ -1,0 +1,9 @@
+# Environnement de test (Python 3.12)
+homeassistant==2024.12.5
+pytest-homeassistant-custom-component==0.13.195
+# Test HomeKit (dépendances du composant homekit)
+HAP-python==4.9.2
+fnv-hash-fast==1.0.2
+PyQRCode==1.2.1
+base36==0.1.1
+ha-ffmpeg==3.2.2
