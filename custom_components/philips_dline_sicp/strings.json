@@ -1,47 +1,631 @@
 {
   "config": {
-    "title": "Philips D-Line SICP",
     "step": {
       "user": {
-        "title": "Connexion au moniteur",
-        "description": "Entrez les paramètres réseau du moniteur Philips D-Line. Assurez-vous que le contrôle réseau (RJ45 / SICP) est activé dans le menu OSD.",
+        "title": "Connect to the display",
+        "description": "Enter the network settings of the Philips display. Make sure network control (SICP, TCP port 5000) is enabled in the OSD menu.",
         "data": {
-          "host": "Adresse IP",
-          "port": "Port TCP (défaut 5000)",
-          "monitor_id": "Monitor ID (OSD → Advanced Option)",
+          "host": "IP address",
+          "port": "TCP port",
+          "monitor_id": "Monitor ID",
           "group_id": "Group ID",
-          "include_group": "Inclure l'octet Group dans les trames"
+          "include_group": "Include the Group byte in frames"
         }
       },
       "options": {
-        "title": "Options du moniteur",
+        "title": "Display options",
+        "description": "Sources listed here become the inputs shown in Home Assistant and in HomeKit.",
         "data": {
-          "poll_interval": "Intervalle de polling (secondes, 0 = désactivé)",
-          "volume_min": "Volume minimum",
-          "volume_max": "Volume maximum",
-          "expose_brightness": "Exposer la luminosité en attribut",
-          "expose_contrast": "Exposer le contraste en attribut"
+          "sources": "Inputs",
+          "poll_interval": "State refresh interval (seconds, 0 = disabled)",
+          "slow_poll_interval": "Settings refresh interval (seconds)",
+          "volume_min": "Minimum volume",
+          "volume_max": "Maximum volume",
+          "volume_step": "Volume step"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre le moniteur. Vérifiez l'IP, le port 5000 et que le contrôle réseau est activé.",
-      "unknown": "Erreur inattendue. Consultez les journaux."
+      "cannot_connect": "Cannot reach the display. Check the IP address, TCP port 5000 and that network control is enabled.",
+      "unknown": "Unexpected error, see the logs."
     },
     "abort": {
-      "already_configured": "Ce moniteur est déjà configuré."
+      "already_configured": "This display is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Options du moniteur",
+        "title": "Display options",
+        "description": "Sources listed here become the inputs shown in Home Assistant and in HomeKit.",
         "data": {
-          "poll_interval": "Intervalle de polling (secondes, 0 = désactivé)",
-          "volume_min": "Volume minimum",
-          "volume_max": "Volume maximum",
-          "expose_brightness": "Exposer la luminosité en attribut",
-          "expose_contrast": "Exposer le contraste en attribut"
+          "sources": "Inputs",
+          "poll_interval": "State refresh interval (seconds, 0 = disabled)",
+          "slow_poll_interval": "Settings refresh interval (seconds)",
+          "volume_min": "Minimum volume",
+          "volume_max": "Maximum volume",
+          "volume_step": "Volume step"
+        }
+      }
+    }
+  },
+  "entity": {
+    "number": {
+      "brightness": {
+        "name": "Brightness"
+      },
+      "color": {
+        "name": "Color"
+      },
+      "contrast": {
+        "name": "Contrast"
+      },
+      "sharpness": {
+        "name": "Sharpness"
+      },
+      "tint": {
+        "name": "Tint"
+      },
+      "black_level": {
+        "name": "Black level"
+      },
+      "audio_out_volume": {
+        "name": "Audio out volume"
+      },
+      "treble": {
+        "name": "Treble"
+      },
+      "bass": {
+        "name": "Bass"
+      },
+      "color_temperature_kelvin": {
+        "name": "Color temperature (K)"
+      },
+      "red_gain": {
+        "name": "Red gain"
+      },
+      "green_gain": {
+        "name": "Green gain"
+      },
+      "blue_gain": {
+        "name": "Blue gain"
+      },
+      "red_offset": {
+        "name": "Red offset"
+      },
+      "green_offset": {
+        "name": "Green offset"
+      },
+      "blue_offset": {
+        "name": "Blue offset"
+      },
+      "speaker_volume_min": {
+        "name": "Speaker volume minimum"
+      },
+      "speaker_volume_max": {
+        "name": "Speaker volume maximum"
+      },
+      "speaker_volume_power_on": {
+        "name": "Speaker volume at power on"
+      },
+      "audio_out_volume_min": {
+        "name": "Audio out volume minimum"
+      },
+      "audio_out_volume_max": {
+        "name": "Audio out volume maximum"
+      },
+      "audio_out_volume_power_on": {
+        "name": "Audio out volume at power on"
+      },
+      "information_osd": {
+        "name": "Information OSD duration"
+      },
+      "off_timer": {
+        "name": "Off timer"
+      },
+      "switch_on_delay": {
+        "name": "Switch on delay"
+      }
+    },
+    "switch": {
+      "freeze": {
+        "name": "Freeze screen"
+      },
+      "av_mute": {
+        "name": "A/V mute"
+      },
+      "speakers": {
+        "name": "Internal speakers"
+      },
+      "audio_sync": {
+        "name": "Audio sync"
+      },
+      "light_sensor": {
+        "name": "Light sensor"
+      },
+      "osd_rotation": {
+        "name": "OSD rotation"
+      },
+      "power_led": {
+        "name": "Power LED"
+      },
+      "wake_on_lan": {
+        "name": "Wake on LAN"
+      },
+      "auto_time_sync": {
+        "name": "Automatic time sync"
+      },
+      "teamviewer": {
+        "name": "TeamViewer"
+      },
+      "force_restart_app": {
+        "name": "Force restart custom app"
+      },
+      "external_storage_lock": {
+        "name": "USB / microSD lock"
+      },
+      "auto_restart": {
+        "name": "Auto restart"
+      }
+    },
+    "time": {
+      "auto_restart_time": {
+        "name": "Auto restart time"
+      },
+      "clock": {
+        "name": "Display clock"
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperature"
+      },
+      "operating_hours": {
+        "name": "Operating hours"
+      },
+      "model": {
+        "name": "Model"
+      },
+      "firmware_version": {
+        "name": "Firmware version"
+      },
+      "android_version": {
+        "name": "Android firmware"
+      },
+      "build_date": {
+        "name": "Build date"
+      },
+      "sicp_version": {
+        "name": "SICP version"
+      },
+      "platform": {
+        "name": "Platform"
+      },
+      "platform_version": {
+        "name": "Platform version"
+      },
+      "serial_number": {
+        "name": "Serial number"
+      },
+      "hdmi_switch_version": {
+        "name": "HDMI switch firmware"
+      },
+      "lan_firmware_version": {
+        "name": "LAN firmware"
+      }
+    },
+    "binary_sensor": {
+      "video_signal": {
+        "name": "Video signal"
+      }
+    },
+    "button": {
+      "restart": {
+        "name": "Restart"
+      },
+      "screenshot": {
+        "name": "Screenshot by e-mail"
+      },
+      "admin_menu": {
+        "name": "Open admin menu"
+      },
+      "vga_auto_adjust": {
+        "name": "VGA auto adjust"
+      },
+      "channel_up": {
+        "name": "Channel up"
+      },
+      "channel_down": {
+        "name": "Channel down"
+      },
+      "reset_schedules": {
+        "name": "Reset schedules"
+      },
+      "factory_reset": {
+        "name": "Factory reset"
+      }
+    },
+    "light": {
+      "backlight": {
+        "name": "Backlight"
+      }
+    },
+    "select": {
+      "picture_format": {
+        "name": "Picture format",
+        "state": {
+          "normal": "Normal (4:3)",
+          "custom": "Custom",
+          "real": "Real (1:1)",
+          "full": "Full",
+          "wide_21_9": "21:9",
+          "dynamic": "Dynamic",
+          "wide_16_9": "16:9"
+        }
+      },
+      "picture_style": {
+        "name": "Picture style",
+        "state": {
+          "highbright": "Highbright",
+          "srgb": "sRGB",
+          "vivid": "Vivid",
+          "natural": "Natural",
+          "standard": "Standard",
+          "video": "Video",
+          "static_signage": "Static signage",
+          "text": "Text",
+          "energy_saving": "Energy saving",
+          "soft": "Soft",
+          "user": "User"
+        }
+      },
+      "gamma": {
+        "name": "Gamma",
+        "state": {
+          "native": "Native",
+          "s_gamma": "S gamma",
+          "gamma_2_2": "2.2",
+          "gamma_2_4": "2.4",
+          "dicom": "D-image (DICOM)"
+        }
+      },
+      "color_temperature": {
+        "name": "Color temperature",
+        "state": {
+          "user_1": "User 1",
+          "native": "Native",
+          "user_2": "User 2",
+          "k11000": "11000 K",
+          "k10000": "10000 K",
+          "k9300": "9300 K",
+          "k7500": "7500 K",
+          "k6500": "6500 K",
+          "k5770": "5770 K",
+          "k5500": "5500 K",
+          "k5000": "5000 K",
+          "k4000": "4000 K",
+          "k3400": "3400 K",
+          "k3350": "3350 K",
+          "k3000": "3000 K",
+          "k2800": "2800 K",
+          "k2600": "2600 K",
+          "k1850": "1850 K"
+        }
+      },
+      "noise_reduction": {
+        "name": "Noise reduction",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "default": "Default"
+        }
+      },
+      "memc": {
+        "name": "MEMC effect",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "scan_mode": {
+        "name": "Scan mode",
+        "state": {
+          "overscan": "Overscan",
+          "underscan": "Underscan",
+          "off": "Off"
+        }
+      },
+      "scan_conversion": {
+        "name": "Scan conversion",
+        "state": {
+          "progressive": "Progressive",
+          "interlace": "Interlace"
+        }
+      },
+      "hdmi_range": {
+        "name": "HDMI input range",
+        "state": {
+          "auto": "Auto",
+          "limited": "Limited",
+          "full": "Full"
+        }
+      },
+      "test_pattern": {
+        "name": "Test pattern",
+        "state": {
+          "off": "Off",
+          "white": "White 100%",
+          "red": "Red",
+          "green": "Green",
+          "blue": "Blue",
+          "black": "Black",
+          "half_white_top": "Half white (top)",
+          "half_white_bottom": "Half white (bottom)",
+          "ramp": "Ramp",
+          "white_12": "White 12%",
+          "white_25": "White 25%",
+          "white_65": "White 65%"
+        }
+      },
+      "factory_color_calibration": {
+        "name": "Factory color calibration",
+        "state": {
+          "off": "Off",
+          "locked": "Locked",
+          "adjustable": "Adjustable"
+        }
+      },
+      "orientation": {
+        "name": "Orientation",
+        "state": {
+          "landscape": "Landscape",
+          "portrait": "Portrait"
+        }
+      },
+      "power_on_state": {
+        "name": "Power on state (cold start)",
+        "state": {
+          "off": "Off",
+          "forced_on": "Forced on",
+          "last_status": "Last status"
+        }
+      },
+      "boot_source": {
+        "name": "Boot on source"
+      },
+      "auto_signal_detection": {
+        "name": "Auto signal detection",
+        "state": {
+          "off": "Off",
+          "all": "All",
+          "pc_only": "PC sources only",
+          "video_only": "Video sources only",
+          "failover": "Failover"
+        }
+      },
+      "smart_power": {
+        "name": "Smart power",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "power_save_mode": {
+        "name": "Power saving mode",
+        "state": {
+          "rgb_off_video_off": "RGB off, video off",
+          "rgb_off_video_on": "RGB off, video on",
+          "rgb_on_video_off": "RGB on, video off",
+          "rgb_on_video_on": "RGB on, video on",
+          "mode_1": "Mode 1",
+          "mode_2": "Mode 2",
+          "mode_3": "Mode 3",
+          "mode_4": "Mode 4"
+        }
+      },
+      "apm": {
+        "name": "Advanced power management",
+        "state": {
+          "off": "Off",
+          "on": "On",
+          "mode_1": "Mode 1 (TCP off / WOL on)",
+          "mode_2": "Mode 2 (TCP on / WOL off)"
+        }
+      },
+      "eco_mode": {
+        "name": "ECO mode",
+        "state": {
+          "low_power_standby": "Low power standby",
+          "normal": "Normal"
+        }
+      },
+      "pixel_shift": {
+        "name": "Pixel shift",
+        "state": {
+          "off": "Off",
+          "auto": "Auto"
+        }
+      },
+      "human_sensor": {
+        "name": "Human sensor",
+        "state": {
+          "off": "Off",
+          "10": "10 min",
+          "20": "20 min",
+          "30": "30 min",
+          "40": "40 min",
+          "50": "50 min",
+          "60": "60 min"
+        }
+      },
+      "fan_speed": {
+        "name": "Fan speed",
+        "state": {
+          "off": "Off",
+          "auto": "Auto",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "power_on_logo": {
+        "name": "Power on logo",
+        "state": {
+          "off": "Off",
+          "on": "On",
+          "user": "User"
+        }
+      },
+      "ir_lock": {
+        "name": "Remote control lock",
+        "state": {
+          "unlock_all": "Unlock all",
+          "lock_all": "Lock all",
+          "lock_all_but_power": "Lock all but power",
+          "lock_all_but_volume": "Lock all but volume",
+          "lock_all_but_power_volume": "Lock all but power & volume",
+          "primary": "Primary",
+          "secondary": "Secondary (daisy chain)"
+        }
+      },
+      "keypad_lock": {
+        "name": "Keypad lock",
+        "state": {
+          "unlock_all": "Unlock all",
+          "lock_all": "Lock all",
+          "lock_all_but_power": "Lock all but power",
+          "lock_all_but_volume": "Lock all but volume",
+          "lock_all_but_power_volume": "Lock all but power & volume"
+        }
+      },
+      "touch": {
+        "name": "Touch",
+        "state": {
+          "unlocked": "Unlocked",
+          "locked": "Locked",
+          "locked_silent": "Locked (no message)"
+        }
+      },
+      "navigation_bar": {
+        "name": "Navigation bar",
+        "state": {
+          "always_off": "Always off",
+          "always_on": "Always on",
+          "auto_hide": "Auto hide"
+        }
+      },
+      "hdmi_cec": {
+        "name": "HDMI CEC",
+        "state": {
+          "off": "Off",
+          "on": "On",
+          "on_with_power_off": "On, with power off"
+        }
+      },
+      "ops_power": {
+        "name": "OPS / SDM power",
+        "state": {
+          "always_off": "Always off",
+          "always_on": "Always on",
+          "auto": "Auto"
+        }
+      },
+      "rs232_routing": {
+        "name": "Network control port",
+        "state": {
+          "rs232": "RS232",
+          "lan_rs232": "LAN → RS232",
+          "card_ops_rs232": "Card OPS → RS232"
+        }
+      },
+      "language": {
+        "name": "OSD language",
+        "state": {
+          "en_us": "English",
+          "es_es": "Español",
+          "fr_fr": "Français",
+          "it_it": "Italiano",
+          "lv_lv": "Latviešu",
+          "lt_lt": "Lietuvių",
+          "nl_nl": "Nederlands",
+          "nb_no": "Norsk bokmål",
+          "pl_pl": "Polski",
+          "pt_pt": "Português",
+          "fi_fi": "Suomi",
+          "sv_se": "Svenska",
+          "tr_tr": "Türkçe",
+          "ru_ru": "Русский",
+          "ar_eg": "العربية",
+          "zh_cn": "中文(简体)",
+          "zh_tw": "中文(繁體)",
+          "ja_jp": "日本語",
+          "cs_cz": "Čeština",
+          "da_dk": "Dansk",
+          "de_de": "Deutsch",
+          "et_ee": "Eesti"
+        }
+      },
+      "time_zone": {
+        "name": "Time zone"
+      }
+    }
+  },
+  "services": {
+    "select_source_playlist": {
+      "name": "Select source with playlist",
+      "description": "Switches to Media Player, PDF Player or Browser and starts a playlist or URL.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Source name (e.g. Media Player) or SICP code (e.g. 0x16)."
+        },
+        "playlist": {
+          "name": "Playlist / URL",
+          "description": "0 = none, 1-7 = playlist or URL number, 8 = USB autoplay."
+        }
+      }
+    },
+    "set_brightness": {
+      "name": "Set brightness",
+      "description": "Sets the display brightness (0-100).",
+      "fields": {
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness from 0 to 100."
+        }
+      }
+    },
+    "set_contrast": {
+      "name": "Set contrast",
+      "description": "Sets the display contrast (0-100).",
+      "fields": {
+        "contrast": {
+          "name": "Contrast",
+          "description": "Contrast from 0 to 100."
+        }
+      }
+    },
+    "send_raw_command": {
+      "name": "Send raw SICP command",
+      "description": "Sends a raw SICP command and returns the display reply (diagnostics).",
+      "fields": {
+        "cmd": {
+          "name": "Command",
+          "description": "Command byte in hexadecimal, e.g. 0x45."
+        },
+        "data": {
+          "name": "Data",
+          "description": "Data bytes in hexadecimal, e.g. 0D 09 01 00."
+        },
+        "host": {
+          "name": "Host",
+          "description": "Only send to the display with this IP address."
         }
       }
     }

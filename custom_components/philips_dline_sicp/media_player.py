@@ -1,40 +1,61 @@
-"""Philips D-Line media_player platform."""
+"""Plateforme media_player : le moniteur vu comme une télévision.
+
+device_class = TV : HomeKit Bridge l'expose en accessoire « Téléviseur »
+(alimentation, entrées, volume et sourdine via la télécommande de l'iPhone).
+"""
 from __future__ import annotations
 
 import logging
-from typing import Any
+
+import voluptuous as vol
 
 from homeassistant.components.media_player import (
+    MediaPlayerDeviceClass,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    CONF_EXPOSE_BRIGHTNESS,
-    CONF_EXPOSE_CONTRAST,
-    CONF_HOST,
-    CONF_INPUTS,
-    CONF_INPUT_CODE,
-    CONF_INPUT_LABEL,
-    CONF_MONITOR_ID,
+    CONF_SOURCES,
     CONF_VOLUME_MAX,
     CONF_VOLUME_MIN,
-    DEFAULT_EXPOSE_BRIGHTNESS,
-    DEFAULT_EXPOSE_CONTRAST,
-    DEFAULT_INPUTS,
+    CONF_VOLUME_STEP,
+    DEFAULT_SOURCES,
     DEFAULT_VOLUME_MAX,
     DEFAULT_VOLUME_MIN,
+    DEFAULT_VOLUME_STEP,
     DOMAIN,
+    SOURCES,
+    source_name,
 )
-from .sicp import SICPError
+from .coordinator import TIER_FAST, PhilipsDLineCoordinator
+from .entity import PhilipsDLineEntity, device_unique_id
+from .sicp import (
+    CMD_INPUT_GET,
+    CMD_MUTE_GET,
+    CMD_MUTE_SET,
+    CMD_VIDEO_GET,
+    CMD_VIDEO_SET,
+    CMD_VOLUME_GET,
+    SICPError,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+Q_VOLUME = (CMD_VOLUME_GET, b"")
+Q_MUTE   = (CMD_MUTE_GET, b"")
+Q_SOURCE = (CMD_INPUT_GET, b"")
+Q_VIDEO  = (CMD_VIDEO_GET, b"")
+
+SERVICE_SELECT_PLAYLIST = "select_source_playlist"
+SERVICE_SET_BRIGHTNESS  = "set_brightness"
+SERVICE_SET_CONTRAST    = "set_contrast"
 
 
 async def async_setup_entry(
@@ -42,199 +63,201 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Philips D-Line media player."""
-    entry_data   = hass.data[DOMAIN][entry.entry_id]
-    coordinator  = entry_data["coordinator"]
-    client       = entry_data["client"]
-    config       = entry_data["config"]
+    runtime = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([PhilipsDLineMediaPlayer(runtime["coordinator"], runtime["config"])])
 
-    async_add_entities(
-        [PhilipsDLineMediaPlayer(coordinator, client, config, entry.entry_id)],
-        update_before_add=True,
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SELECT_PLAYLIST,
+        {
+            vol.Required("source"): cv.string,
+            vol.Optional("playlist", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=8)),
+        },
+        "async_select_source_playlist",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_BRIGHTNESS,
+        {vol.Required("brightness"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100))},
+        "async_set_brightness",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_CONTRAST,
+        {vol.Required("contrast"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100))},
+        "async_set_contrast",
     )
 
 
-class PhilipsDLineMediaPlayer(CoordinatorEntity, MediaPlayerEntity):
-    """Representation of a Philips D-Line display as a media player."""
+class PhilipsDLineMediaPlayer(PhilipsDLineEntity, MediaPlayerEntity):
+    """Le moniteur Philips D-Line en tant que téléviseur."""
 
-    _attr_has_entity_name = True
-    _attr_name = None  # Use device name directly
+    _attr_name = None
+    _attr_device_class = MediaPlayerDeviceClass.TV
+    _attr_supported_features = (
+        MediaPlayerEntityFeature.TURN_ON
+        | MediaPlayerEntityFeature.TURN_OFF
+        | MediaPlayerEntityFeature.SELECT_SOURCE
+        | MediaPlayerEntityFeature.VOLUME_SET
+        | MediaPlayerEntityFeature.VOLUME_MUTE
+        | MediaPlayerEntityFeature.VOLUME_STEP
+    )
 
-    def __init__(self, coordinator, client, config: dict, entry_id: str) -> None:
-        super().__init__(coordinator)
-        self._client     = client
-        self._config     = config
-        self._entry_id   = entry_id
+    def __init__(self, coordinator: PhilipsDLineCoordinator, config: dict) -> None:
+        super().__init__(coordinator, config)
+        # Identifiant historique conservé pour ne pas recréer l'entité
+        self._attr_unique_id = device_unique_id(config)
 
-        host       = config[CONF_HOST]
-        monitor_id = config.get(CONF_MONITOR_ID, 1)
+        self._vol_min  = int(config.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN))
+        self._vol_max  = int(config.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX))
+        self._vol_step = int(config.get(CONF_VOLUME_STEP, DEFAULT_VOLUME_STEP))
 
-        self._attr_unique_id = f"philips_dline_{host}_{monitor_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._attr_unique_id)},
-            name=f"Philips D-Line ({host})",
-            manufacturer="Philips",
-            model="D-Line SICP",
-        )
-
-        # Build source list from config
-        inputs = config.get(CONF_INPUTS, DEFAULT_INPUTS)
+        # Sources : choix de l'utilisateur, sinon celles annoncées par le moniteur
+        codes = config.get(CONF_SOURCES) or coordinator.sources or DEFAULT_SOURCES
         self._source_map: dict[str, int] = {}
-        for inp in inputs:
-            label = inp[CONF_INPUT_LABEL]
-            code  = inp[CONF_INPUT_CODE]
-            if isinstance(code, str):
-                code = int(code, 16) if code.startswith("0x") else int(code)
-            self._source_map[label] = code
-        self._source_map_inv: dict[int, str] = {v: k for k, v in self._source_map.items()}
+        for code in codes:
+            code = int(code)
+            self._source_map[source_name(code)] = code
+        self._attr_source_list = list(self._source_map)
 
-        self._attr_source_list = list(self._source_map.keys())
-
-        self._vol_min = int(config.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN))
-        self._vol_max = int(config.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX))
-
-        self._expose_brightness = config.get(CONF_EXPOSE_BRIGHTNESS, DEFAULT_EXPOSE_BRIGHTNESS)
-        self._expose_contrast   = config.get(CONF_EXPOSE_CONTRAST, DEFAULT_EXPOSE_CONTRAST)
-
-        # Supported features
-        self._attr_supported_features = (
-            MediaPlayerEntityFeature.TURN_ON
-            | MediaPlayerEntityFeature.TURN_OFF
-            | MediaPlayerEntityFeature.SELECT_SOURCE
-            | MediaPlayerEntityFeature.VOLUME_SET
-            | MediaPlayerEntityFeature.VOLUME_MUTE
-            | MediaPlayerEntityFeature.VOLUME_STEP
-        )
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        for query in (Q_VOLUME, Q_MUTE, Q_SOURCE):
+            self.async_on_remove(self.coordinator.register(query, TIER_FAST))
 
     # ──────────────────────────────────────────
-    # State properties (from coordinator data)
+    # État
     # ──────────────────────────────────────────
 
     @property
-    def state(self) -> MediaPlayerState:
-        data = self.coordinator.data or {}
-        if data.get("power"):
-            return MediaPlayerState.ON
-        return MediaPlayerState.OFF
+    def state(self) -> MediaPlayerState | None:
+        if self.coordinator.power is None:
+            return None
+        return MediaPlayerState.ON if self.coordinator.power else MediaPlayerState.OFF
+
+    def _payload(self, query) -> bytes | None:
+        return self.coordinator.payload(query)
+
+    @property
+    def _speaker_volume(self) -> int | None:
+        payload = self._payload(Q_VOLUME)
+        return payload[0] if payload else None
 
     @property
     def volume_level(self) -> float | None:
-        data = self.coordinator.data or {}
-        raw = data.get("volume")
+        raw = self._speaker_volume
         if raw is None:
             return None
         span = self._vol_max - self._vol_min
         if span <= 0:
             return 0.0
-        # raw est la valeur absolue SICP (0-100), on la ramène à 0.0-1.0
         return max(0.0, min(1.0, (raw - self._vol_min) / span))
 
     @property
     def volume_step(self) -> float:
-        """Pas du slider : 2 unités SICP ramenées à l'échelle 0-1."""
         span = self._vol_max - self._vol_min
-        if span <= 0:
-            return 0.02
-        return 2.0 / span
+        return self._vol_step / span if span > 0 else 0.02
 
     @property
     def is_volume_muted(self) -> bool | None:
-        data = self.coordinator.data or {}
-        return data.get("muted")
+        payload = self._payload(Q_MUTE)
+        return payload[0] == 0x01 if payload else None
 
     @property
     def source(self) -> str | None:
-        data = self.coordinator.data or {}
-        code = data.get("source")
-        if code is None:
+        payload = self._payload(Q_SOURCE)
+        if not payload:
             return None
-        return self._source_map_inv.get(code)
+        return source_name(payload[0])
 
-    # Extra state attributes for brightness / contrast
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        attrs: dict[str, Any] = {}
-        data = self.coordinator.data or {}
-        if self._expose_brightness and data.get("brightness") is not None:
-            attrs["brightness"] = data["brightness"]
-        if self._expose_contrast and data.get("contrast") is not None:
-            attrs["contrast"] = data["contrast"]
+    def extra_state_attributes(self) -> dict:
+        attrs: dict = {}
+        source = self._payload(Q_SOURCE)
+        if source and len(source) > 1 and source[0] in (0x10, 0x16, 0x17):
+            attrs["playlist"] = source[1]
+        volume = self._payload(Q_VOLUME)
+        if volume and len(volume) > 1:
+            attrs["audio_out_volume"] = volume[1]
         return attrs
 
     # ──────────────────────────────────────────
-    # Commands
+    # Commandes
     # ──────────────────────────────────────────
 
     async def async_turn_on(self) -> None:
-        await self._call(self._client.async_set_power, True)
+        await self.coordinator.async_set_power(True)
 
     async def async_turn_off(self) -> None:
-        await self._call(self._client.async_set_power, False)
+        await self.coordinator.async_set_power(False)
+
+    async def _ensure_on(self) -> None:
+        if self.coordinator.power is False:
+            await self.coordinator.async_set_power(True)
+
+    async def _set_speaker_volume(self, level: int) -> None:
+        await self._ensure_on()
+        level = max(self._vol_min, min(self._vol_max, level))
+        try:
+            await self.coordinator.client.async_set_volume(level)
+        except SICPError as exc:
+            raise ServiceValidationError(f"Réglage du volume refusé : {exc}") from exc
+        await self.coordinator.async_refresh_queries([Q_VOLUME, Q_MUTE])
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        span = self._vol_max - self._vol_min
+        await self._set_speaker_volume(int(round(self._vol_min + volume * span)))
+
+    async def async_volume_up(self) -> None:
+        current = self._speaker_volume
+        await self._set_speaker_volume((self._vol_min if current is None else current) + self._vol_step)
+
+    async def async_volume_down(self) -> None:
+        current = self._speaker_volume
+        await self._set_speaker_volume((self._vol_min if current is None else current) - self._vol_step)
 
     async def async_mute_volume(self, mute: bool) -> None:
         await self._ensure_on()
-        await self._call(self._client.async_set_mute, mute)
-
-    async def async_set_volume_level(self, volume: float) -> None:
-        await self._ensure_on()
-        span  = self._vol_max - self._vol_min
-        level = int(round(self._vol_min + volume * span))
-        level = max(self._vol_min, min(self._vol_max, level))
-        _LOGGER.debug(
-            "set_volume_level: HA=%.3f → SICP=%d (min=%d max=%d)",
-            volume, level, self._vol_min, self._vol_max,
+        await self.coordinator.async_command(
+            CMD_MUTE_SET, bytes([0x01 if mute else 0x00]), refresh=[Q_MUTE]
         )
-        await self._call(self._client.async_set_volume, level)
 
-    async def async_volume_up(self) -> None:
-        await self._ensure_on()
-        data = self.coordinator.data or {}
-        current = data.get("volume") or self._vol_min
-        await self._call(self._client.async_set_volume, min(self._vol_max, current + 2))
+    def _resolve_source(self, source: str) -> int:
+        if source in self._source_map:
+            return self._source_map[source]
+        for code, name in SOURCES.items():
+            if name.lower() == source.lower():
+                return code
+        try:
+            return int(source, 16) if source.lower().startswith("0x") else int(source)
+        except ValueError:
+            raise ServiceValidationError(f"Source inconnue : {source}") from None
 
-    async def async_volume_down(self) -> None:
+    async def _select(self, code: int, playlist: int | None) -> None:
         await self._ensure_on()
-        data = self.coordinator.data or {}
-        current = data.get("volume") or self._vol_min
-        await self._call(self._client.async_set_volume, max(self._vol_min, current - 2))
+        try:
+            await self.coordinator.client.async_set_input(code, playlist)
+        except SICPError as exc:
+            raise ServiceValidationError(
+                f"Changement de source refusé ({source_name(code)}) : {exc}"
+            ) from exc
+        await self.coordinator.async_refresh_queries([Q_SOURCE])
 
     async def async_select_source(self, source: str) -> None:
-        await self._ensure_on()
-        code = self._source_map.get(source)
-        if code is None:
-            _LOGGER.warning("Unknown source: %s", source)
-            return
-        await self._call(self._client.async_set_input, code)
+        await self._select(self._resolve_source(source), None)
 
-    # Service calls exposed as HA services via entity platform
+    async def async_select_source_playlist(self, source: str, playlist: int = 0) -> None:
+        """Source Media Player / PDF Player / Browser avec playlist ou URL 1-7 (8 = USB autoplay)."""
+        await self._select(self._resolve_source(source), playlist)
+
+    async def _set_video_param(self, index: int, value: int) -> None:
+        # 0xFF = « inchangé » (SICP ≥ 2.09) ; on repart de la dernière lecture
+        # pour rester compatible avec les firmwares plus anciens.
+        current = self._payload(Q_VIDEO)
+        frame = bytearray(current[:7]) if current and len(current) >= 7 else bytearray([0xFF] * 7)
+        frame[index] = max(0, min(100, value))
+        await self.coordinator.async_command(CMD_VIDEO_SET, bytes(frame), refresh=[Q_VIDEO])
+
     async def async_set_brightness(self, brightness: int) -> None:
-        """Set display brightness (0-100). Call via service."""
-        await self._call(self._client.async_set_brightness, brightness)
+        await self._set_video_param(0, brightness)
 
     async def async_set_contrast(self, contrast: int) -> None:
-        """Set display contrast (0-100). Call via service."""
-        await self._call(self._client.async_set_contrast, contrast)
-
-    # ──────────────────────────────────────────
-    # Helpers
-    # ──────────────────────────────────────────
-
-    async def _ensure_on(self) -> None:
-        """Allume l'écran s'il est en veille, sans déclencher de refresh."""
-        data = self.coordinator.data or {}
-        # Si power est explicitement False, on allume. Si None (inconnu), on laisse passer.
-        if data.get("power") is False:
-            _LOGGER.debug("Écran éteint, allumage avant commande")
-            try:
-                await self._client.async_set_power(True)
-            except SICPError as exc:
-                _LOGGER.warning("Impossible d'allumer l'écran : %s", exc)
-
-    async def _call(self, method, *args) -> None:
-        """Call a SICP method, refresh coordinator, handle errors."""
-        try:
-            await method(*args)
-        except SICPError as exc:
-            _LOGGER.error("SICP command failed: %s", exc)
-            return
-        await self.coordinator.async_request_refresh()
+        await self._set_video_param(2, contrast)

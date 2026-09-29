@@ -1,4 +1,4 @@
-"""Config flow for Philips D-Line SICP integration."""
+"""Config flow de l'intégration Philips D-Line SICP."""
 from __future__ import annotations
 
 import logging
@@ -9,30 +9,38 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .const import (
-    CONF_EXPOSE_BRIGHTNESS,
-    CONF_EXPOSE_CONTRAST,
     CONF_GROUP_ID,
     CONF_HOST,
     CONF_INCLUDE_GROUP,
-    CONF_INPUTS,
     CONF_MONITOR_ID,
     CONF_POLL_INTERVAL,
     CONF_PORT,
+    CONF_SLOW_POLL_INTERVAL,
+    CONF_SOURCES,
     CONF_VOLUME_MAX,
     CONF_VOLUME_MIN,
-    DEFAULT_EXPOSE_BRIGHTNESS,
-    DEFAULT_EXPOSE_CONTRAST,
+    CONF_VOLUME_STEP,
     DEFAULT_GROUP_ID,
     DEFAULT_INCLUDE_GROUP,
-    DEFAULT_INPUTS,
     DEFAULT_MONITOR_ID,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_PORT,
+    DEFAULT_SLOW_POLL_INTERVAL,
+    DEFAULT_SOURCES,
     DEFAULT_VOLUME_MAX,
     DEFAULT_VOLUME_MIN,
+    DEFAULT_VOLUME_STEP,
     DOMAIN,
+    SOURCES,
+    source_name,
 )
 from .sicp import PhilipsSICP, SICPError
 
@@ -43,38 +51,71 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_HOST): str,
         vol.Optional(CONF_PORT, default=DEFAULT_PORT): int,
         vol.Optional(CONF_MONITOR_ID, default=DEFAULT_MONITOR_ID): vol.All(int, vol.Range(min=1, max=255)),
-        vol.Optional(CONF_GROUP_ID,   default=DEFAULT_GROUP_ID):   vol.All(int, vol.Range(min=0, max=255)),
+        vol.Optional(CONF_GROUP_ID, default=DEFAULT_GROUP_ID): vol.All(int, vol.Range(min=0, max=254)),
         vol.Optional(CONF_INCLUDE_GROUP, default=DEFAULT_INCLUDE_GROUP): bool,
     }
 )
 
-OPTIONS_SCHEMA = vol.Schema(
-    {
-        vol.Optional(CONF_POLL_INTERVAL,    default=DEFAULT_POLL_INTERVAL): vol.All(int, vol.Range(min=0, max=300)),
-        vol.Optional(CONF_VOLUME_MIN,       default=DEFAULT_VOLUME_MIN):    vol.All(int, vol.Range(min=0, max=100)),
-        vol.Optional(CONF_VOLUME_MAX,       default=DEFAULT_VOLUME_MAX):    vol.All(int, vol.Range(min=1, max=100)),
-        vol.Optional(CONF_EXPOSE_BRIGHTNESS, default=DEFAULT_EXPOSE_BRIGHTNESS): bool,
-        vol.Optional(CONF_EXPOSE_CONTRAST,   default=DEFAULT_EXPOSE_CONTRAST):   bool,
-    }
-)
+
+def _options_schema(current: dict[str, Any], available: list[int]) -> vol.Schema:
+    """Schéma des options ; `available` = sources proposées à la sélection."""
+    # Moniteur incapable de lister ses sources (0xAB) : catalogue complet,
+    # avec une présélection raisonnable
+    choices = list(dict.fromkeys(available)) or list(SOURCES)
+    selected = [int(c) for c in current.get(CONF_SOURCES) or available or DEFAULT_SOURCES]
+    # Une source choisie auparavant reste proposée même si le moniteur ne l'annonce plus
+    choices += [c for c in selected if c not in choices]
+    options = [SelectOptionDict(value=str(c), label=source_name(c)) for c in choices]
+
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_SOURCES, default=[str(c) for c in selected if c in choices]
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=options, multiple=True, mode=SelectSelectorMode.LIST
+                )
+            ),
+            vol.Optional(
+                CONF_POLL_INTERVAL,
+                default=current.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+            ): vol.All(int, vol.Range(min=0, max=300)),
+            vol.Optional(
+                CONF_SLOW_POLL_INTERVAL,
+                default=current.get(CONF_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL),
+            ): vol.All(int, vol.Range(min=30, max=3600)),
+            vol.Optional(
+                CONF_VOLUME_MIN, default=current.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN)
+            ): vol.All(int, vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_VOLUME_MAX, default=current.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX)
+            ): vol.All(int, vol.Range(min=1, max=100)),
+            vol.Optional(
+                CONF_VOLUME_STEP, default=current.get(CONF_VOLUME_STEP, DEFAULT_VOLUME_STEP)
+            ): vol.All(int, vol.Range(min=1, max=20)),
+        }
+    )
+
+
+def _normalize(user_input: dict[str, Any]) -> dict[str, Any]:
+    result = dict(user_input)
+    result[CONF_SOURCES] = [int(c) for c in user_input.get(CONF_SOURCES, [])]
+    return result
 
 
 class PhilipsDLineSICPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Philips D-Line SICP."""
+    """Ajout d'un moniteur Philips D-Line."""
 
     VERSION = 1
 
     def __init__(self) -> None:
         self._connection_data: dict[str, Any] = {}
+        self._available_sources: list[int] = []
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 1 – connection parameters."""
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Test connection
             client = PhilipsSICP(
                 host=user_input[CONF_HOST],
                 port=user_input[CONF_PORT],
@@ -83,98 +124,58 @@ class PhilipsDLineSICPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 include_group=user_input[CONF_INCLUDE_GROUP],
             )
             try:
-                ok = await client.async_ping()
-                if not ok:
+                if not await client.async_ping():
                     errors["base"] = "cannot_connect"
-            except SICPError:
-                errors["base"] = "cannot_connect"
-            except (TimeoutError, OSError):
-                errors["base"] = "cannot_connect"
+                else:
+                    try:
+                        self._available_sources = await client.async_get_sources()
+                    except SICPError:
+                        self._available_sources = []
             except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected error during setup")
+                _LOGGER.exception("Erreur inattendue pendant la configuration")
                 errors["base"] = "unknown"
+            finally:
+                await client.disconnect()
 
             if not errors:
-                # Avoid duplicate entries for the same host
                 await self.async_set_unique_id(
                     f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}:{user_input[CONF_MONITOR_ID]}"
                 )
                 self._abort_if_unique_id_configured()
-
                 self._connection_data = user_input
                 return await self.async_step_options()
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_SCHEMA,
-            errors=errors,
-        )
+        return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors)
 
-    async def async_step_options(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 2 – display options."""
+    async def async_step_options(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
-            data = {
-                **self._connection_data,
-                **user_input,
-                CONF_INPUTS: DEFAULT_INPUTS,
-            }
             return self.async_create_entry(
                 title=f"Philips D-Line ({self._connection_data[CONF_HOST]})",
-                data=data,
+                data={**self._connection_data, **_normalize(user_input)},
             )
-
         return self.async_show_form(
             step_id="options",
-            data_schema=OPTIONS_SCHEMA,
+            data_schema=_options_schema({}, self._available_sources),
+            description_placeholders={"count": str(len(self._available_sources))},
         )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> PhilipsDLineOptionsFlow:
-        """Return the options flow."""
         return PhilipsDLineOptionsFlow(config_entry)
 
 
 class PhilipsDLineOptionsFlow(config_entries.OptionsFlow):
-    """Handle options for an existing Philips D-Line entry."""
+    """Modification des options d'un moniteur existant."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self._config_entry = config_entry
+        self._entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Manage the options."""
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=_normalize(user_input))
 
-        current = self._config_entry.options or self._config_entry.data
-
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_POLL_INTERVAL,
-                    default=current.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
-                ): vol.All(int, vol.Range(min=0, max=300)),
-                vol.Optional(
-                    CONF_VOLUME_MIN,
-                    default=current.get(CONF_VOLUME_MIN, DEFAULT_VOLUME_MIN),
-                ): vol.All(int, vol.Range(min=0, max=100)),
-                vol.Optional(
-                    CONF_VOLUME_MAX,
-                    default=current.get(CONF_VOLUME_MAX, DEFAULT_VOLUME_MAX),
-                ): vol.All(int, vol.Range(min=1, max=100)),
-                vol.Optional(
-                    CONF_EXPOSE_BRIGHTNESS,
-                    default=current.get(CONF_EXPOSE_BRIGHTNESS, DEFAULT_EXPOSE_BRIGHTNESS),
-                ): bool,
-                vol.Optional(
-                    CONF_EXPOSE_CONTRAST,
-                    default=current.get(CONF_EXPOSE_CONTRAST, DEFAULT_EXPOSE_CONTRAST),
-                ): bool,
-            }
-        )
-
-        return self.async_show_form(step_id="init", data_schema=schema)
+        current = {**self._entry.data, **self._entry.options}
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        available = list(runtime["coordinator"].sources) if runtime else []
+        return self.async_show_form(step_id="init", data_schema=_options_schema(current, available))

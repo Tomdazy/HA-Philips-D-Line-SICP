@@ -1,0 +1,633 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion au moniteur",
+        "description": "Entrez les paramètres réseau du moniteur Philips. Vérifiez que le contrôle réseau (SICP, port TCP 5000) est activé dans le menu OSD.",
+        "data": {
+          "host": "Adresse IP",
+          "port": "Port TCP",
+          "monitor_id": "Monitor ID",
+          "group_id": "Group ID",
+          "include_group": "Inclure l'octet Group dans les trames"
+        }
+      },
+      "options": {
+        "title": "Options du moniteur",
+        "description": "Les sources cochées deviennent les entrées proposées dans Home Assistant et dans HomeKit.",
+        "data": {
+          "sources": "Entrées",
+          "poll_interval": "Intervalle de rafraîchissement de l'état (secondes, 0 = désactivé)",
+          "slow_poll_interval": "Intervalle de rafraîchissement des réglages (secondes)",
+          "volume_min": "Volume minimum",
+          "volume_max": "Volume maximum",
+          "volume_step": "Pas du volume"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre le moniteur. Vérifiez l'adresse IP, le port TCP 5000 et que le contrôle réseau est activé.",
+      "unknown": "Erreur inattendue, consultez les journaux."
+    },
+    "abort": {
+      "already_configured": "Ce moniteur est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options du moniteur",
+        "description": "Les sources cochées deviennent les entrées proposées dans Home Assistant et dans HomeKit.",
+        "data": {
+          "sources": "Entrées",
+          "poll_interval": "Intervalle de rafraîchissement de l'état (secondes, 0 = désactivé)",
+          "slow_poll_interval": "Intervalle de rafraîchissement des réglages (secondes)",
+          "volume_min": "Volume minimum",
+          "volume_max": "Volume maximum",
+          "volume_step": "Pas du volume"
+        }
+      }
+    }
+  },
+  "entity": {
+    "number": {
+      "brightness": {
+        "name": "Luminosité"
+      },
+      "color": {
+        "name": "Couleur"
+      },
+      "contrast": {
+        "name": "Contraste"
+      },
+      "sharpness": {
+        "name": "Netteté"
+      },
+      "tint": {
+        "name": "Teinte"
+      },
+      "black_level": {
+        "name": "Niveau de noir"
+      },
+      "audio_out_volume": {
+        "name": "Volume sortie audio"
+      },
+      "treble": {
+        "name": "Aigus"
+      },
+      "bass": {
+        "name": "Graves"
+      },
+      "color_temperature_kelvin": {
+        "name": "Température de couleur (K)"
+      },
+      "red_gain": {
+        "name": "Gain rouge"
+      },
+      "green_gain": {
+        "name": "Gain vert"
+      },
+      "blue_gain": {
+        "name": "Gain bleu"
+      },
+      "red_offset": {
+        "name": "Décalage rouge"
+      },
+      "green_offset": {
+        "name": "Décalage vert"
+      },
+      "blue_offset": {
+        "name": "Décalage bleu"
+      },
+      "speaker_volume_min": {
+        "name": "Volume HP minimum"
+      },
+      "speaker_volume_max": {
+        "name": "Volume HP maximum"
+      },
+      "speaker_volume_power_on": {
+        "name": "Volume HP à l'allumage"
+      },
+      "audio_out_volume_min": {
+        "name": "Volume sortie audio minimum"
+      },
+      "audio_out_volume_max": {
+        "name": "Volume sortie audio maximum"
+      },
+      "audio_out_volume_power_on": {
+        "name": "Volume sortie audio à l'allumage"
+      },
+      "information_osd": {
+        "name": "Durée de l'OSD d'information"
+      },
+      "off_timer": {
+        "name": "Minuterie d'arrêt"
+      },
+      "switch_on_delay": {
+        "name": "Délai d'allumage"
+      }
+    },
+    "switch": {
+      "freeze": {
+        "name": "Figer l'image"
+      },
+      "av_mute": {
+        "name": "Coupure A/V"
+      },
+      "speakers": {
+        "name": "Haut-parleurs internes"
+      },
+      "audio_sync": {
+        "name": "Synchro audio"
+      },
+      "light_sensor": {
+        "name": "Capteur de luminosité"
+      },
+      "osd_rotation": {
+        "name": "Rotation de l'OSD"
+      },
+      "power_led": {
+        "name": "Voyant d'alimentation"
+      },
+      "wake_on_lan": {
+        "name": "Wake on LAN"
+      },
+      "auto_time_sync": {
+        "name": "Synchro automatique de l'heure"
+      },
+      "teamviewer": {
+        "name": "TeamViewer"
+      },
+      "force_restart_app": {
+        "name": "Relance forcée de l'app personnalisée"
+      },
+      "external_storage_lock": {
+        "name": "Verrouillage USB / microSD"
+      },
+      "auto_restart": {
+        "name": "Redémarrage automatique"
+      }
+    },
+    "time": {
+      "auto_restart_time": {
+        "name": "Heure du redémarrage automatique"
+      },
+      "clock": {
+        "name": "Horloge du moniteur"
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Température"
+      },
+      "operating_hours": {
+        "name": "Heures de fonctionnement"
+      },
+      "model": {
+        "name": "Modèle"
+      },
+      "firmware_version": {
+        "name": "Version du firmware"
+      },
+      "android_version": {
+        "name": "Firmware Android"
+      },
+      "build_date": {
+        "name": "Date de compilation"
+      },
+      "sicp_version": {
+        "name": "Version SICP"
+      },
+      "platform": {
+        "name": "Plateforme"
+      },
+      "platform_version": {
+        "name": "Version de plateforme"
+      },
+      "serial_number": {
+        "name": "Numéro de série"
+      },
+      "hdmi_switch_version": {
+        "name": "Firmware du switch HDMI"
+      },
+      "lan_firmware_version": {
+        "name": "Firmware LAN"
+      }
+    },
+    "binary_sensor": {
+      "video_signal": {
+        "name": "Signal vidéo"
+      }
+    },
+    "button": {
+      "restart": {
+        "name": "Redémarrer"
+      },
+      "screenshot": {
+        "name": "Capture d'écran par e-mail"
+      },
+      "admin_menu": {
+        "name": "Ouvrir le menu admin"
+      },
+      "vga_auto_adjust": {
+        "name": "Réglage auto VGA"
+      },
+      "channel_up": {
+        "name": "Chaîne suivante"
+      },
+      "channel_down": {
+        "name": "Chaîne précédente"
+      },
+      "reset_schedules": {
+        "name": "Réinitialiser les programmations"
+      },
+      "factory_reset": {
+        "name": "Réinitialisation d'usine"
+      }
+    },
+    "light": {
+      "backlight": {
+        "name": "Rétroéclairage"
+      }
+    },
+    "select": {
+      "picture_format": {
+        "name": "Format d'image",
+        "state": {
+          "normal": "Normal (4:3)",
+          "custom": "Personnalisé",
+          "real": "Réel (1:1)",
+          "full": "Plein écran",
+          "wide_21_9": "21:9",
+          "dynamic": "Dynamique",
+          "wide_16_9": "16:9"
+        }
+      },
+      "picture_style": {
+        "name": "Style d'image",
+        "state": {
+          "highbright": "Haute luminosité",
+          "srgb": "sRGB",
+          "vivid": "Éclatant",
+          "natural": "Naturel",
+          "standard": "Standard",
+          "video": "Vidéo",
+          "static_signage": "Affichage statique",
+          "text": "Texte",
+          "energy_saving": "Économie d'énergie",
+          "soft": "Doux",
+          "user": "Utilisateur"
+        }
+      },
+      "gamma": {
+        "name": "Gamma",
+        "state": {
+          "native": "Natif",
+          "s_gamma": "S gamma",
+          "gamma_2_2": "2.2",
+          "gamma_2_4": "2.4",
+          "dicom": "D-image (DICOM)"
+        }
+      },
+      "color_temperature": {
+        "name": "Température de couleur",
+        "state": {
+          "user_1": "Utilisateur 1",
+          "native": "Native",
+          "user_2": "Utilisateur 2",
+          "k11000": "11000 K",
+          "k10000": "10000 K",
+          "k9300": "9300 K",
+          "k7500": "7500 K",
+          "k6500": "6500 K",
+          "k5770": "5770 K",
+          "k5500": "5500 K",
+          "k5000": "5000 K",
+          "k4000": "4000 K",
+          "k3400": "3400 K",
+          "k3350": "3350 K",
+          "k3000": "3000 K",
+          "k2800": "2800 K",
+          "k2600": "2600 K",
+          "k1850": "1850 K"
+        }
+      },
+      "noise_reduction": {
+        "name": "Réduction du bruit",
+        "state": {
+          "off": "Désactivée",
+          "low": "Faible",
+          "medium": "Moyenne",
+          "high": "Forte",
+          "default": "Par défaut"
+        }
+      },
+      "memc": {
+        "name": "Effet MEMC",
+        "state": {
+          "off": "Désactivé",
+          "low": "Faible",
+          "medium": "Moyen",
+          "high": "Fort"
+        }
+      },
+      "scan_mode": {
+        "name": "Mode de balayage",
+        "state": {
+          "overscan": "Overscan",
+          "underscan": "Underscan",
+          "off": "Désactivé"
+        }
+      },
+      "scan_conversion": {
+        "name": "Conversion de balayage",
+        "state": {
+          "progressive": "Progressif",
+          "interlace": "Entrelacé"
+        }
+      },
+      "hdmi_range": {
+        "name": "Plage d'entrée HDMI",
+        "state": {
+          "auto": "Auto",
+          "limited": "Limitée",
+          "full": "Complète"
+        }
+      },
+      "test_pattern": {
+        "name": "Mire de test",
+        "state": {
+          "off": "Désactivée",
+          "white": "Blanc 100 %",
+          "red": "Rouge",
+          "green": "Vert",
+          "blue": "Bleu",
+          "black": "Noir",
+          "half_white_top": "Moitié blanche (haut)",
+          "half_white_bottom": "Moitié blanche (bas)",
+          "ramp": "Dégradé",
+          "white_12": "Blanc 12 %",
+          "white_25": "Blanc 25 %",
+          "white_65": "Blanc 65 %"
+        }
+      },
+      "factory_color_calibration": {
+        "name": "Calibration couleur d'usine",
+        "state": {
+          "off": "Désactivée",
+          "locked": "Verrouillée",
+          "adjustable": "Ajustable"
+        }
+      },
+      "orientation": {
+        "name": "Orientation",
+        "state": {
+          "landscape": "Paysage",
+          "portrait": "Portrait"
+        }
+      },
+      "power_on_state": {
+        "name": "État à la mise sous tension",
+        "state": {
+          "off": "Éteint",
+          "forced_on": "Allumage forcé",
+          "last_status": "Dernier état"
+        }
+      },
+      "boot_source": {
+        "name": "Source au démarrage"
+      },
+      "auto_signal_detection": {
+        "name": "Détection auto du signal",
+        "state": {
+          "off": "Désactivée",
+          "all": "Toutes",
+          "pc_only": "Sources PC uniquement",
+          "video_only": "Sources vidéo uniquement",
+          "failover": "Basculement"
+        }
+      },
+      "smart_power": {
+        "name": "Smart power",
+        "state": {
+          "off": "Désactivé",
+          "low": "Faible",
+          "medium": "Moyen",
+          "high": "Fort"
+        }
+      },
+      "power_save_mode": {
+        "name": "Mode d'économie d'énergie",
+        "state": {
+          "rgb_off_video_off": "RGB off, vidéo off",
+          "rgb_off_video_on": "RGB off, vidéo on",
+          "rgb_on_video_off": "RGB on, vidéo off",
+          "rgb_on_video_on": "RGB on, vidéo on",
+          "mode_1": "Mode 1",
+          "mode_2": "Mode 2",
+          "mode_3": "Mode 3",
+          "mode_4": "Mode 4"
+        }
+      },
+      "apm": {
+        "name": "Gestion avancée de l'alimentation",
+        "state": {
+          "off": "Désactivée",
+          "on": "Activée",
+          "mode_1": "Mode 1 (TCP off / WOL on)",
+          "mode_2": "Mode 2 (TCP on / WOL off)"
+        }
+      },
+      "eco_mode": {
+        "name": "Mode ECO",
+        "state": {
+          "low_power_standby": "Veille basse consommation",
+          "normal": "Normal"
+        }
+      },
+      "pixel_shift": {
+        "name": "Décalage des pixels",
+        "state": {
+          "off": "Désactivé",
+          "auto": "Auto"
+        }
+      },
+      "human_sensor": {
+        "name": "Capteur de présence",
+        "state": {
+          "off": "Désactivé",
+          "10": "10 min",
+          "20": "20 min",
+          "30": "30 min",
+          "40": "40 min",
+          "50": "50 min",
+          "60": "60 min"
+        }
+      },
+      "fan_speed": {
+        "name": "Vitesse du ventilateur",
+        "state": {
+          "off": "Arrêt",
+          "auto": "Auto",
+          "low": "Lente",
+          "medium": "Moyenne",
+          "high": "Rapide"
+        }
+      },
+      "power_on_logo": {
+        "name": "Logo au démarrage",
+        "state": {
+          "off": "Désactivé",
+          "on": "Activé",
+          "user": "Utilisateur"
+        }
+      },
+      "ir_lock": {
+        "name": "Verrouillage télécommande",
+        "state": {
+          "unlock_all": "Tout déverrouiller",
+          "lock_all": "Tout verrouiller",
+          "lock_all_but_power": "Tout sauf l'alimentation",
+          "lock_all_but_volume": "Tout sauf le volume",
+          "lock_all_but_power_volume": "Tout sauf alimentation et volume",
+          "primary": "Principal",
+          "secondary": "Secondaire (chaînage)"
+        }
+      },
+      "keypad_lock": {
+        "name": "Verrouillage clavier",
+        "state": {
+          "unlock_all": "Tout déverrouiller",
+          "lock_all": "Tout verrouiller",
+          "lock_all_but_power": "Tout sauf l'alimentation",
+          "lock_all_but_volume": "Tout sauf le volume",
+          "lock_all_but_power_volume": "Tout sauf alimentation et volume"
+        }
+      },
+      "touch": {
+        "name": "Tactile",
+        "state": {
+          "unlocked": "Déverrouillé",
+          "locked": "Verrouillé",
+          "locked_silent": "Verrouillé (sans message)"
+        }
+      },
+      "navigation_bar": {
+        "name": "Barre de navigation",
+        "state": {
+          "always_off": "Toujours masquée",
+          "always_on": "Toujours visible",
+          "auto_hide": "Masquage auto"
+        }
+      },
+      "hdmi_cec": {
+        "name": "HDMI CEC",
+        "state": {
+          "off": "Désactivé",
+          "on": "Activé",
+          "on_with_power_off": "Activé, avec extinction"
+        }
+      },
+      "ops_power": {
+        "name": "Alimentation OPS / SDM",
+        "state": {
+          "always_off": "Toujours éteint",
+          "always_on": "Toujours allumé",
+          "auto": "Auto"
+        }
+      },
+      "rs232_routing": {
+        "name": "Port de contrôle réseau",
+        "state": {
+          "rs232": "RS232",
+          "lan_rs232": "LAN → RS232",
+          "card_ops_rs232": "Card OPS → RS232"
+        }
+      },
+      "language": {
+        "name": "Langue de l'OSD",
+        "state": {
+          "en_us": "English",
+          "es_es": "Español",
+          "fr_fr": "Français",
+          "it_it": "Italiano",
+          "lv_lv": "Latviešu",
+          "lt_lt": "Lietuvių",
+          "nl_nl": "Nederlands",
+          "nb_no": "Norsk bokmål",
+          "pl_pl": "Polski",
+          "pt_pt": "Português",
+          "fi_fi": "Suomi",
+          "sv_se": "Svenska",
+          "tr_tr": "Türkçe",
+          "ru_ru": "Русский",
+          "ar_eg": "العربية",
+          "zh_cn": "中文(简体)",
+          "zh_tw": "中文(繁體)",
+          "ja_jp": "日本語",
+          "cs_cz": "Čeština",
+          "da_dk": "Dansk",
+          "de_de": "Deutsch",
+          "et_ee": "Eesti"
+        }
+      },
+      "time_zone": {
+        "name": "Fuseau horaire"
+      }
+    }
+  },
+  "services": {
+    "select_source_playlist": {
+      "name": "Choisir une source avec playlist",
+      "description": "Bascule sur Media Player, PDF Player ou Browser et lance une playlist ou une URL.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Nom de la source (ex. Media Player) ou code SICP (ex. 0x16)."
+        },
+        "playlist": {
+          "name": "Playlist / URL",
+          "description": "0 = aucune, 1-7 = numéro de playlist ou d'URL, 8 = lecture auto USB."
+        }
+      }
+    },
+    "set_brightness": {
+      "name": "Régler la luminosité",
+      "description": "Règle la luminosité du moniteur (0-100).",
+      "fields": {
+        "brightness": {
+          "name": "Luminosité",
+          "description": "Luminosité de 0 à 100."
+        }
+      }
+    },
+    "set_contrast": {
+      "name": "Régler le contraste",
+      "description": "Règle le contraste du moniteur (0-100).",
+      "fields": {
+        "contrast": {
+          "name": "Contraste",
+          "description": "Contraste de 0 à 100."
+        }
+      }
+    },
+    "send_raw_command": {
+      "name": "Envoyer une commande SICP brute",
+      "description": "Envoie une commande SICP brute et retourne la réponse du moniteur (diagnostic).",
+      "fields": {
+        "cmd": {
+          "name": "Commande",
+          "description": "Octet de commande en hexadécimal, ex. 0x45."
+        },
+        "data": {
+          "name": "Données",
+          "description": "Octets de données en hexadécimal, ex. 0D 09 01 00."
+        },
+        "host": {
+          "name": "Hôte",
+          "description": "N'envoyer qu'au moniteur ayant cette adresse IP."
+        }
+      }
+    }
+  }
+}

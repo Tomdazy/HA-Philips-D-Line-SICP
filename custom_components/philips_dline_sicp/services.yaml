@@ -1,14 +1,29 @@
+select_source_playlist:
+  target:
+    entity:
+      domain: media_player
+      integration: philips_dline_sicp
+  fields:
+    source:
+      required: true
+      example: "Media Player"
+      selector:
+        text:
+    playlist:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 8
+          mode: box
+
 set_brightness:
-  name: Set Brightness
-  description: Règle la luminosité du moniteur Philips D-Line (0–100).
   target:
     entity:
       domain: media_player
       integration: philips_dline_sicp
   fields:
     brightness:
-      name: Luminosité
-      description: Valeur de luminosité de 0 à 100.
       required: true
       selector:
         number:
@@ -17,16 +32,12 @@ set_brightness:
           unit_of_measurement: "%"
 
 set_contrast:
-  name: Set Contrast
-  description: Règle le contraste du moniteur Philips D-Line (0–100).
   target:
     entity:
       domain: media_player
       integration: philips_dline_sicp
   fields:
     contrast:
-      name: Contraste
-      description: Valeur de contraste de 0 à 100.
       required: true
       selector:
         number:
@@ -35,21 +46,17 @@ set_contrast:
           unit_of_measurement: "%"
 
 send_raw_command:
-  name: Send Raw SICP Command (diagnostic)
-  description: >
-    Envoie une commande SICP brute et loggue la réponse complète.
-    Utile pour déboguer les codes de commande de votre firmware.
-    Exemple : cmd=0x45 data="" pour interroger le volume.
   fields:
     cmd:
-      name: Command byte (hex)
-      description: "Octet de commande en hexadécimal, ex: '0x45'"
       required: true
+      example: "0x45"
       selector:
         text:
     data:
-      name: Data bytes (hex, optionnel)
-      description: "Octets de données en hex sans espaces, ex: '02' pour envoyer 0x02"
-      required: false
+      example: "0D 09 01 00"
+      selector:
+        text:
+    host:
+      example: "192.168.1.120"
       selector:
         text:
