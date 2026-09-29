@@ -4,211 +4,215 @@
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue)](https://www.home-assistant.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Home Assistant custom integration to control **Philips D-Line** signage displays over your local network using the **SICP** binary protocol (TCP port 5000).
+🇫🇷 [Version française](README.fr-FR.md)
 
-> Native HA equivalent of the [homebridge-philips-dline-sicp](https://github.com/Tomdazy/homebridge-philips-dline-sicp) Homebridge plugin.
+Home Assistant integration to control **Philips professional displays** (D-Line and other Signage models) over the local network with the **SICP** protocol (TCP port 5000), following the SICP 2.09 specification.
+
+The display shows up as a **television**: HomeKit Bridge exposes it in the Home app as a Television accessory, with power, inputs, volume and the iPhone remote.
 
 ---
 
-## Features
+## What you can control
 
-| Feature | Details |
+Entities marked ◌ are **disabled by default**, because few models support them or they are rarely needed. Enable them from the device page (*Settings → Devices & services → Philips D-Line → hidden entities*).
+
+| Platform | Entities |
 |---|---|
-| **Power** | Turn on / standby |
-| **Source selection** | HDMI 1–4, DisplayPort, VGA, Media Player, Browser, PDF Player… |
-| **Volume** | Absolute level (0–100), mute/unmute, step up/down |
-| **Brightness** | State attribute + `philips_dline_sicp.set_brightness` service |
-| **Contrast** | State attribute + `philips_dline_sicp.set_contrast` service |
-| **Polling** | Configurable interval (0 = disabled) |
-| **Config Flow** | Full graphical setup — no YAML required |
-| **Options Flow** | Edit settings any time without re-adding the integration |
-| **Multi-display** | Add multiple entries for multiple monitors |
+| **Television** (`media_player`) | Power / standby, input source, speaker volume, mute |
+| **Backlight** (`light`) | Turn the panel on or off without powering down the electronics, brightness. In HomeKit it is a dimmable bulb. |
+| **Settings** (`number`) | Brightness, color, contrast, sharpness, tint ◌, black level ◌, audio out volume ◌, treble ◌, bass ◌, color temperature in kelvin ◌, RGB gains and offsets ◌, volume limits ◌, information OSD duration ◌, off timer, switch-on delay ◌ |
+| **Modes** (`select`) | Picture format, picture style, gamma, color temperature, power-on state, auto signal detection, Smart power, ECO mode, HDMI CEC, remote control lock, keypad lock. Disabled by default: noise reduction, MEMC, scan mode, scan conversion, HDMI range, test pattern, factory color calibration, orientation, boot source, power saving mode, APM, pixel shift, human sensor, fan speed, power-on logo, touch, navigation bar, OPS/SDM power, network control port, OSD language, time zone |
+| **Switches** (`switch`) | Freeze screen, A/V mute, internal speakers, power LED, Wake on LAN, USB / microSD lock. Disabled by default: audio sync, light sensor, OSD rotation, automatic time sync, TeamViewer, force restart custom app, auto restart |
+| **Times** (`time`) | Auto restart time ◌, display clock ◌ |
+| **Sensors** (`sensor`) | Temperature, operating hours, model, firmware version, Android firmware, SICP version, serial number. Disabled by default: build date, platform, HDMI switch and LAN firmware |
+| **Binary sensor** | Video signal present |
+| **Buttons** (`button`) | Restart. Disabled by default: screenshot by e-mail, Android admin menu, VGA auto adjust, channel +/−, reset schedules, factory reset |
+
+A command your display does not know (NACK reply, or repeated NAV) makes the entity *unavailable*. The integration retries it one hour later.
+
+The input list is read from the display (command `0xAB`, SICP 2.05+). Otherwise you pick inputs from the full catalogue.
 
 ---
 
 ## Requirements
 
 - Home Assistant **2024.1** or later
-- A Philips D-Line display with network control enabled:
-  - OSD menu → **Configuration 1 → Network Settings** → enable
-  - Confirm the SICP port shows **5000 (Connected)**
-  - Note the display **IP address** and **Monitor ID** (OSD → Advanced Option)
-- The display must be reachable from HA on **TCP port 5000**
+- A Philips display with network control enabled:
+  - OSD → **Configuration 1 → Network settings**: enable networking
+  - check that the SICP port shows **5000**
+  - note the **IP address** and **Monitor ID** (OSD → Advanced option)
+- TCP port **5000** of the display reachable from Home Assistant
+- For remote power-on, the display must keep its network active in standby: set **APM / ECO mode** accordingly (see the display manual)
 
-> ⚠️ The SICP protocol has no authentication. Keep your display on a trusted VLAN or local network segment.
+> ⚠️ SICP has no authentication: keep the display on a trusted network.
 
 ---
 
 ## Installation
 
-### Via HACS (recommended)
+### HACS (recommended)
 
-1. In HACS, click **Custom Repositories**
-2. Add this repository URL with category **Integration**
-3. Search for **"Philips D-Line SICP"** and click Install
+1. In HACS, open **Custom repositories**
+2. Add this repository URL, category **Integration**
+3. Install **Philips D-Line SICP**
 4. Restart Home Assistant
 
 ### Manual
 
 ```bash
-# From your HA config directory:
 cp -r custom_components/philips_dline_sicp /config/custom_components/
 ```
 
-Restart Home Assistant.
+Then restart Home Assistant.
 
 ---
 
 ## Configuration
 
-1. Go to **Settings → Devices & Services → Add Integration**
-2. Search for **"Philips D-Line"**
-3. Fill in the setup steps below
+*Settings → Devices & services → Add integration → Philips D-Line*
 
-### Step 1 — Connection
+### Step 1: connection
 
-| Field | Default | Description |
+| Field | Default | Purpose |
 |---|---|---|
-| IP address | — | Display IP on your LAN |
-| TCP port | `5000` | SICP port (do not change unless needed) |
-| Monitor ID | `1` | Display identifier from OSD → Advanced Option |
-| Group ID | `0` | Group byte (usually 0) |
-| Include Group byte | ✓ | Uncheck if you receive no ACK |
+| IP address | — | Display IP |
+| TCP port | `5000` | SICP port |
+| Monitor ID | `1` | Identifier set in the OSD |
+| Group ID | `0` | `0` = address by Monitor ID |
+| Include the Group byte | ✓ | Untick only for very old firmware (SICP 1.x) |
 
-The integration will attempt a live connection before saving. If the display does not respond, an error is shown.
+The integration tests the connection before saving.
 
-### Step 2 — Options
+### Step 2: options (editable later with **Configure**)
 
-| Field | Default | Description |
+| Field | Default | Purpose |
 |---|---|---|
-| Poll interval | `15` s | How often to refresh state (0 = disabled) |
-| Volume min | `0` | Lower bound for volume scaling |
-| Volume max | `100` | Upper bound for volume scaling |
-| Expose brightness | ✓ | Adds `brightness` to entity state attributes |
-| Expose contrast | ✗ | Adds `contrast` to entity state attributes |
+| Inputs | inputs reported by the display | Inputs offered in Home Assistant and HomeKit |
+| State refresh interval | `15` s | Power, input, volume, picture (0 = disabled) |
+| Settings refresh interval | `300` s | All other settings |
+| Minimum / maximum volume | `0` / `100` | Volume slider bounds |
+| Volume step | `2` | Increment of the volume + / − buttons |
 
-All options can be changed later via **Settings → Devices & Services → Configure** without removing the integration.
+In standby only the power state is polled: the display rejects most other commands in that state.
 
 ---
 
-## Input Sources
+## HomeKit: the display as a television
 
-Sources are defined in `const.py` (`DEFAULT_INPUTS`). SICP input codes may vary by firmware version — adjust if your display does not respond to a specific source.
+HomeKit only accepts televisions as **standalone accessories**, not behind a bridge. Home Assistant handles this for you:
 
-| Source | SICP code |
-|---|---|
-| HDMI 1 | `0x0D` |
-| HDMI 2 | `0x06` |
-| HDMI 3 | `0x0F` |
-| HDMI 4 | `0x19` |
-| DisplayPort | `0x22` |
-| DVI-D | `0x04` |
-| VGA | `0x01` |
-| Media Player | `0x30` |
-| Browser | `0x40` |
-| PDF Player | `0x41` |
-| Card OPS | `0x07` |
+1. *Settings → Devices & services → Add integration → **HomeKit Bridge***
+2. Tick at least the **Media player** domain (add **Light** and **Switch** for brightness and switches), then submit
+3. Home Assistant creates the bridge **plus a dedicated accessory-mode instance for the television**. Each one posts a pairing QR code in the notifications.
+4. In the Home app: **Add accessory**, then scan the television's QR code (and the bridge's if you use it)
+
+If HomeKit Bridge is already set up, add a HomeKit Bridge entry in **accessory mode** (options: *Mode* `accessory`, *Entity* `media_player.philips_…`).
+
+In the Home app you then get:
+
+- power on and standby
+- the **inputs**, with their names (rename or hide them in the app)
+- **volume** and **mute** from the Control Center remote, using the iPhone hardware buttons
+
+Through the bridge, the **backlight** shows up as a dimmable bulb (screen brightness) and the **switches** (freeze screen, A/V mute…) as outlets. Filter the exposed entities in the bridge options.
+
+> The iOS remote arrow keys have no SICP equivalent. Home Assistant still fires the `homekit_tv_remote_key_pressed` event, which you can use in automations.
 
 ---
 
-## Services
+## Actions
 
-### `philips_dline_sicp.set_brightness`
+### `philips_dline_sicp.select_source_playlist`
 
-Set the display backlight brightness (0–100).
+Switches to Media Player, PDF Player or Browser and starts a playlist or URL (1 to 7, 8 = USB autoplay).
 
 ```yaml
-service: philips_dline_sicp.set_brightness
+action: philips_dline_sicp.select_source_playlist
+target:
+  entity_id: media_player.philips_43bdl4550d_00
+data:
+  source: Media Player
+  playlist: 2
+```
+
+### `philips_dline_sicp.set_brightness` / `set_contrast`
+
+Kept for compatibility. Prefer the matching `number` entities.
+
+```yaml
+action: philips_dline_sicp.set_brightness
+target:
+  entity_id: media_player.philips_43bdl4550d_00
 data:
   brightness: 70
 ```
 
-### `philips_dline_sicp.set_contrast`
+### `philips_dline_sicp.send_raw_command`
 
-Set the display contrast (0–100).
+Diagnostics: sends a raw SICP command and **returns** the reply (in *Developer tools → Actions*, tick "Return response").
 
 ```yaml
-service: philips_dline_sicp.set_contrast
+action: philips_dline_sicp.send_raw_command
 data:
-  contrast: 50
+  cmd: "0xA2"
+  data: "00"
 ```
 
 ---
 
-## Automation Examples
+## Automation examples
 
-### Turn on at sunrise and select HDMI 1
+### Turn on at 8 am on HDMI 1
 
 ```yaml
 automation:
-  - alias: "Living room display — morning on"
-    trigger:
-      platform: sun
-      event: sunrise
-    action:
-      - service: media_player.turn_on
+  - alias: Display morning power-on
+    triggers:
+      - trigger: time
+        at: "08:00:00"
+    actions:
+      - action: media_player.turn_on
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
-      - delay: "00:00:02"
-      - service: media_player.select_source
+          entity_id: media_player.philips_43bdl4550d_00
+      - delay: "00:00:05"
+      - action: media_player.select_source
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
+          entity_id: media_player.philips_43bdl4550d_00
         data:
-          source: "HDMI 1"
+          source: HDMI 1
 ```
 
-### Dim the display at night
+### Dim the display in the evening
 
 ```yaml
 automation:
-  - alias: "Living room display — dim at night"
-    trigger:
-      platform: time
-      at: "22:00:00"
-    action:
-      - service: philips_dline_sicp.set_brightness
-        data:
-          brightness: 20
-```
-
-### Mute on incoming call (example)
-
-```yaml
-automation:
-  - alias: "Display mute during call"
-    trigger:
-      platform: state
-      entity_id: binary_sensor.phone_in_call
-      to: "on"
-    action:
-      - service: media_player.mute_volume
+  - alias: Display evening dimming
+    triggers:
+      - trigger: time
+        at: "20:00:00"
+    actions:
+      - action: number.set_value
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
+          entity_id: number.philips_43bdl4550d_00_brightness
         data:
-          is_volume_muted: true
+          value: 30
 ```
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Solution |
+| Symptom | What to check |
 |---|---|
-| "Cannot connect" during setup | Check IP, verify TCP port 5000 is reachable, confirm SICP is enabled in OSD |
-| No ACK / repeated timeouts | Try disabling the Group byte (`Include Group byte = false`) |
-| Source does not change | Your firmware may use different codes — cross-reference your SICP documentation |
-| Entity becomes unavailable | Display is off or unreachable; state will recover on next poll when the display is back |
+| "Cannot reach the display" | IP, port 5000 (`nc -zv <ip> 5000`) and network control in the OSD |
+| Power-on does not work | Set APM / ECO mode so the network stays active in standby |
+| An entity stays unavailable | Your model does not support that command. Disable the entity. |
+| Picture settings unavailable on an Android source | Expected on some models (BDL3452T, BDL3651T, BDL3550Q, BDL4550D): SICP only adjusts the picture of external inputs there |
+| No reply at all | Try unticking "Include the Group byte" (very old firmware) |
 
-Quick connectivity test from a terminal:
-
-```bash
-nc -zv 192.168.1.120 5000
-```
-
-Enable debug logging for more detail:
+Debug logs:
 
 ```yaml
-# configuration.yaml
 logger:
   logs:
     custom_components.philips_dline_sicp: debug
@@ -216,14 +220,10 @@ logger:
 
 ---
 
-## SICP Protocol Notes
+## Contributing
 
-SICP (Serial/Ethernet Interface Communication Protocol) is a binary framing protocol used across Philips professional displays. Each packet contains a length byte, monitor ID, optional group ID, a command byte, optional data bytes, and an XOR checksum. The display replies with ACK (success), NACK (checksum error), or NAV (command not supported by this firmware).
-
-This integration uses **SICP v2** framing over TCP. If your display reports SICP v1.x, try disabling the Group byte in the options.
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md). Release history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT, see [LICENSE](LICENSE).

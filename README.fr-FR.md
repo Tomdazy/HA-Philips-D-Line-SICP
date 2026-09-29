@@ -4,38 +4,47 @@
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue)](https://www.home-assistant.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Intégration custom Home Assistant pour piloter les moniteurs **Philips D-Line** via le réseau local en utilisant le protocole binaire **SICP** (port TCP 5000).
+🇬🇧 [English version](README.md)
 
-> Équivalent natif HA du plugin Homebridge [homebridge-philips-dline-sicp](https://github.com/Tomdazy/homebridge-philips-dline-sicp).
+Intégration Home Assistant pour piloter les moniteurs professionnels **Philips** (gamme D-Line et autres modèles Signage) sur le réseau local, via le protocole **SICP** (port TCP 5000), selon la spécification SICP 2.09.
+
+Le moniteur apparaît comme une **télévision** : HomeKit Bridge l'expose dans l'app Maison sous forme d'accessoire Téléviseur, avec l'alimentation, les entrées, le volume et la télécommande de l'iPhone.
 
 ---
 
-## Fonctionnalités
+## Ce qui est pilotable
 
-| Fonctionnalité | Détail |
+Les entités marquées ◌ sont **désactivées par défaut** : peu de modèles les supportent, ou elles servent rarement. On les active depuis la fiche de l'appareil (*Paramètres → Appareils et services → Philips D-Line → entités masquées*).
+
+| Plateforme | Entités |
 |---|---|
-| **Alimentation** | Allumer / mettre en veille |
-| **Sélection de source** | HDMI 1–4, DisplayPort, VGA, Media Player, Browser, PDF Player… |
-| **Volume** | Niveau absolu (0–100), mute/unmute, monter/descendre |
-| **Luminosité** | Attribut d'état + service `philips_dline_sicp.set_brightness` |
-| **Contraste** | Attribut d'état + service `philips_dline_sicp.set_contrast` |
-| **Polling** | Intervalle configurable (0 = désactivé) |
-| **Config Flow** | Configuration graphique complète — aucun YAML requis |
-| **Options Flow** | Modification des réglages à tout moment sans reconfiguration |
-| **Multi-moniteurs** | Ajoutez plusieurs entrées pour plusieurs moniteurs |
+| **Télévision** (`media_player`) | Marche / veille, choix de la source, volume des haut-parleurs, sourdine |
+| **Rétroéclairage** (`light`) | Allumer ou éteindre la dalle sans couper l'électronique, luminosité. Dans HomeKit, c'est une ampoule variable. |
+| **Réglages** (`number`) | Luminosité, couleur, contraste, netteté, teinte ◌, niveau de noir ◌, volume de la sortie audio ◌, aigus ◌, graves ◌, température de couleur en kelvins ◌, gains et décalages RVB ◌, limites de volume ◌, durée de l'OSD d'information ◌, minuterie d'arrêt, délai d'allumage ◌ |
+| **Modes** (`select`) | Format d'image, style d'image, gamma, température de couleur, état à la mise sous tension, détection auto du signal, Smart power, mode ECO, HDMI CEC, verrouillage télécommande, verrouillage clavier. Désactivés par défaut : réduction du bruit, MEMC, mode de balayage, conversion de balayage, plage HDMI, mire de test, calibration couleur d'usine, orientation, source au démarrage, mode d'économie d'énergie, APM, décalage des pixels, capteur de présence, ventilateur, logo au démarrage, tactile, barre de navigation, alimentation OPS/SDM, port de contrôle réseau, langue de l'OSD, fuseau horaire |
+| **Interrupteurs** (`switch`) | Figer l'image, coupure A/V, haut-parleurs internes, voyant d'alimentation, Wake on LAN, verrouillage USB / microSD. Désactivés par défaut : synchro audio, capteur de luminosité, rotation de l'OSD, synchro automatique de l'heure, TeamViewer, relance forcée de l'app personnalisée, redémarrage automatique |
+| **Heures** (`time`) | Heure du redémarrage automatique ◌, horloge du moniteur ◌ |
+| **Capteurs** (`sensor`) | Température, heures de fonctionnement, modèle, version du firmware, firmware Android, version SICP, numéro de série. Désactivés par défaut : date de compilation, plateforme, firmwares du switch HDMI et du module LAN |
+| **Capteur binaire** | Signal vidéo présent |
+| **Boutons** (`button`) | Redémarrer. Désactivés par défaut : capture d'écran par e-mail, menu admin Android, réglage auto VGA, chaîne +/−, réinitialisation des programmations, réinitialisation d'usine |
+
+Une commande que votre moniteur ne connaît pas (réponse NACK, ou NAV répétés) rend l'entité *indisponible*. L'intégration la réessaie une heure plus tard.
+
+La liste des sources est lue sur le moniteur (commande `0xAB`, SICP 2.05 et plus). À défaut, on la choisit dans le catalogue complet.
 
 ---
 
 ## Prérequis
 
-- Home Assistant **2024.1** ou version ultérieure
-- Un moniteur Philips D-Line avec le contrôle réseau activé :
-  - Menu OSD → **Configuration 1 → Network Settings** → activer
-  - Vérifier que le port SICP affiche **5000 (Connected)**
-  - Relever l'**adresse IP** et le **Monitor ID** du moniteur (OSD → Advanced Option)
-- Le moniteur doit être joignable depuis HA sur **TCP port 5000**
+- Home Assistant **2024.1** ou plus récent
+- Un moniteur Philips avec le contrôle réseau activé :
+  - menu OSD → **Configuration 1 → Paramètres réseau** : activer le réseau
+  - vérifier que le port SICP indique **5000**
+  - relever l'**adresse IP** et le **Monitor ID** (OSD → Option avancée)
+- Le port **TCP 5000** du moniteur doit être joignable depuis Home Assistant
+- Pour que la mise en marche fonctionne à distance, le moniteur doit garder le réseau actif en veille : réglez **APM / mode ECO** en conséquence (voir le manuel du moniteur)
 
-> ⚠️ Le protocole SICP ne comporte aucune authentification. Gardez votre moniteur sur un VLAN de confiance ou un segment réseau local isolé.
+> ⚠️ SICP n'a aucune authentification : gardez le moniteur sur un réseau de confiance.
 
 ---
 
@@ -43,172 +52,167 @@ Intégration custom Home Assistant pour piloter les moniteurs **Philips D-Line**
 
 ### Via HACS (recommandé)
 
-1. Dans HACS, cliquer sur **Dépôts personnalisés**
-2. Ajouter l'URL de ce dépôt avec la catégorie **Intégration**
-3. Rechercher **"Philips D-Line SICP"** et cliquer sur Installer
-4. Redémarrer Home Assistant
+1. Dans HACS, ouvrez **Dépôts personnalisés**
+2. Ajoutez l'URL de ce dépôt, catégorie **Intégration**
+3. Installez **Philips D-Line SICP**
+4. Redémarrez Home Assistant
 
 ### Manuelle
 
 ```bash
-# Depuis le répertoire de configuration de HA :
 cp -r custom_components/philips_dline_sicp /config/custom_components/
 ```
 
-Redémarrer Home Assistant.
+Puis redémarrez Home Assistant.
 
 ---
 
 ## Configuration
 
-1. Aller dans **Paramètres → Appareils et services → Ajouter une intégration**
-2. Rechercher **"Philips D-Line"**
-3. Remplir les étapes ci-dessous
+*Paramètres → Appareils et services → Ajouter une intégration → Philips D-Line*
 
-### Étape 1 — Connexion
+### Étape 1 : connexion
 
-| Champ | Défaut | Description |
+| Champ | Défaut | Rôle |
 |---|---|---|
-| Adresse IP | — | IP du moniteur sur votre réseau local |
-| Port TCP | `5000` | Port SICP (ne pas modifier sauf cas particulier) |
-| Monitor ID | `1` | Identifiant OSD du moniteur (OSD → Advanced Option) |
-| Group ID | `0` | Octet de groupe (généralement 0) |
-| Include Group byte | ✓ | Décocher si aucun ACK n'est reçu |
+| Adresse IP | — | IP du moniteur |
+| Port TCP | `5000` | Port SICP |
+| Monitor ID | `1` | Identifiant défini dans l'OSD |
+| Group ID | `0` | `0` = pilotage par Monitor ID |
+| Inclure l'octet Group | ✓ | À décocher uniquement pour de très vieux firmwares (SICP 1.x) |
 
-L'intégration tente une connexion en direct avant d'enregistrer. Si le moniteur ne répond pas, un message d'erreur s'affiche.
+L'intégration teste la connexion avant d'enregistrer.
 
-### Étape 2 — Options
+### Étape 2 : options (modifiables ensuite via **Configurer**)
 
-| Champ | Défaut | Description |
+| Champ | Défaut | Rôle |
 |---|---|---|
-| Intervalle de polling | `15` s | Fréquence de mise à jour de l'état (0 = désactivé) |
-| Volume minimum | `0` | Borne basse pour la mise à l'échelle du volume |
-| Volume maximum | `100` | Borne haute pour la mise à l'échelle du volume |
-| Exposer la luminosité | ✓ | Ajoute `brightness` aux attributs d'état de l'entité |
-| Exposer le contraste | ✗ | Ajoute `contrast` aux attributs d'état de l'entité |
+| Entrées | sources annoncées par le moniteur | Sources proposées dans Home Assistant et HomeKit |
+| Rafraîchissement de l'état | `15` s | Alimentation, source, volume, image (0 = désactivé) |
+| Rafraîchissement des réglages | `300` s | Tous les autres réglages |
+| Volume minimum / maximum | `0` / `100` | Bornes du curseur de volume |
+| Pas du volume | `2` | Incrément des boutons volume + / − |
 
-Tous ces réglages peuvent être modifiés ultérieurement via **Paramètres → Appareils et services → Configurer**, sans supprimer l'intégration.
+En veille, seule l'alimentation est interrogée : le moniteur refuse la plupart des autres commandes dans cet état.
 
 ---
 
-## Sources d'entrée
+## HomeKit : le moniteur comme téléviseur
 
-Les sources sont définies dans `const.py` (`DEFAULT_INPUTS`). Les codes SICP peuvent varier selon la version du firmware — ajustez-les si votre moniteur ne réagit pas à une source particulière.
+HomeKit n'accepte les téléviseurs que comme **accessoires indépendants**, pas derrière un pont. Home Assistant s'en charge automatiquement :
 
-| Source | Code SICP |
-|---|---|
-| HDMI 1 | `0x0D` |
-| HDMI 2 | `0x06` |
-| HDMI 3 | `0x0F` |
-| HDMI 4 | `0x19` |
-| DisplayPort | `0x22` |
-| DVI-D | `0x04` |
-| VGA | `0x01` |
-| Media Player | `0x30` |
-| Browser | `0x40` |
-| PDF Player | `0x41` |
-| Card OPS | `0x07` |
+1. *Paramètres → Appareils et services → Ajouter une intégration → **HomeKit Bridge***
+2. Cochez au moins le domaine **Lecteur multimédia** (ajoutez **Lumière** et **Interrupteur** pour la luminosité et les interrupteurs), puis validez
+3. Home Assistant crée le pont, **plus une instance dédiée en mode accessoire pour le téléviseur**. Chacune affiche un QR code d'appairage dans les notifications.
+4. Dans l'app Maison : **Ajouter un accessoire**, puis scannez le QR code du téléviseur (et celui du pont si vous l'utilisez)
+
+Si HomeKit Bridge est déjà configuré, ajoutez une entrée HomeKit Bridge en **mode accessoire** (options : *Mode* `accessory`, *Entité* `media_player.philips_…`).
+
+Vous obtenez alors dans l'app Maison :
+
+- l'allumage et la mise en veille
+- les **entrées**, avec leurs noms (renommables et masquables dans l'app)
+- le **volume** et la **sourdine** depuis la télécommande du Centre de contrôle, via les boutons physiques de l'iPhone
+
+Via le pont, le **rétroéclairage** apparaît comme une ampoule variable (luminosité de l'écran) et les **interrupteurs** (figer l'image, coupure A/V…) comme des prises. Pensez à filtrer les entités exposées dans les options du pont.
+
+> Les flèches de la télécommande iOS n'ont pas d'équivalent SICP. Home Assistant émet toutefois l'événement `homekit_tv_remote_key_pressed` : vous pouvez l'utiliser dans vos automatisations.
 
 ---
 
-## Services disponibles
+## Services
 
-### `philips_dline_sicp.set_brightness`
+### `philips_dline_sicp.select_source_playlist`
 
-Règle la luminosité de l'écran (0–100).
+Bascule sur Media Player, PDF Player ou Browser et lance une playlist ou une URL (1 à 7, 8 = lecture auto USB).
 
 ```yaml
-service: philips_dline_sicp.set_brightness
+action: philips_dline_sicp.select_source_playlist
+target:
+  entity_id: media_player.philips_43bdl4550d_00
+data:
+  source: Media Player
+  playlist: 2
+```
+
+### `philips_dline_sicp.set_brightness` / `set_contrast`
+
+Conservés pour compatibilité. Préférez les entités `number` correspondantes.
+
+```yaml
+action: philips_dline_sicp.set_brightness
+target:
+  entity_id: media_player.philips_43bdl4550d_00
 data:
   brightness: 70
 ```
 
-### `philips_dline_sicp.set_contrast`
+### `philips_dline_sicp.send_raw_command`
 
-Règle le contraste de l'écran (0–100).
+Diagnostic : envoie une commande SICP brute et **retourne** la réponse (dans *Outils de développement → Actions*, cochez « Retourner une réponse »).
 
 ```yaml
-service: philips_dline_sicp.set_contrast
+action: philips_dline_sicp.send_raw_command
 data:
-  contrast: 50
+  cmd: "0xA2"
+  data: "00"
 ```
 
 ---
 
-## Exemples d'automatisation
+## Exemples d'automatisations
 
-### Allumer au lever du soleil et sélectionner HDMI 1
+### Allumer à 8 h sur HDMI 1
 
 ```yaml
 automation:
-  - alias: "Moniteur salon — allumage matin"
-    trigger:
-      platform: sun
-      event: sunrise
-    action:
-      - service: media_player.turn_on
+  - alias: Moniteur, allumage du matin
+    triggers:
+      - trigger: time
+        at: "08:00:00"
+    actions:
+      - action: media_player.turn_on
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
-      - delay: "00:00:02"
-      - service: media_player.select_source
+          entity_id: media_player.philips_43bdl4550d_00
+      - delay: "00:00:05"
+      - action: media_player.select_source
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
+          entity_id: media_player.philips_43bdl4550d_00
         data:
-          source: "HDMI 1"
+          source: HDMI 1
 ```
 
-### Réduire la luminosité le soir
+### Baisser la luminosité le soir
 
 ```yaml
 automation:
-  - alias: "Moniteur salon — mode nuit"
-    trigger:
-      platform: time
-      at: "22:00:00"
-    action:
-      - service: philips_dline_sicp.set_brightness
-        data:
-          brightness: 20
-```
-
-### Couper le son lors d'un appel téléphonique (exemple)
-
-```yaml
-automation:
-  - alias: "Moniteur — sourdine pendant appel"
-    trigger:
-      platform: state
-      entity_id: binary_sensor.telephone_en_appel
-      to: "on"
-    action:
-      - service: media_player.mute_volume
+  - alias: Moniteur, luminosité réduite
+    triggers:
+      - trigger: time
+        at: "20:00:00"
+    actions:
+      - action: number.set_value
         target:
-          entity_id: media_player.philips_d_line_192_168_1_120
+          entity_id: number.philips_43bdl4550d_00_luminosite
         data:
-          is_volume_muted: true
+          value: 30
 ```
 
 ---
 
 ## Dépannage
 
-| Symptôme | Solution |
+| Symptôme | Piste |
 |---|---|
-| "Cannot connect" lors de la configuration | Vérifier l'IP, que le port 5000 est accessible, et que le contrôle réseau est activé dans l'OSD |
-| Pas d'ACK / timeouts répétés | Essayer de désactiver l'octet Group (`Include Group byte = false`) |
-| La source ne change pas | Votre firmware utilise peut-être des codes différents — comparez avec la documentation SICP de votre modèle |
-| L'entité devient indisponible | Le moniteur est éteint ou injoignable ; l'état se rétablit au prochain polling |
+| « Impossible de joindre le moniteur » | Vérifiez l'IP, le port 5000 (`nc -zv <ip> 5000`) et le contrôle réseau dans l'OSD |
+| La mise en marche ne fonctionne pas | Réglez APM / mode ECO pour que le réseau reste actif en veille |
+| Une entité reste indisponible | Votre modèle ne supporte pas la commande. Désactivez l'entité. |
+| Les réglages d'image sont indisponibles sur une source Android | Normal sur certains modèles (BDL3452T, BDL3651T, BDL3550Q, BDL4550D) : SICP n'y règle l'image que sur les sources externes |
+| Aucune réponse du tout | Essayez de décocher « Inclure l'octet Group » (très vieux firmwares) |
 
-Test rapide de connectivité depuis un terminal :
-
-```bash
-nc -zv 192.168.1.120 5000
-```
-
-Activer les logs de débogage pour plus de détails :
+Journaux détaillés :
 
 ```yaml
-# configuration.yaml
 logger:
   logs:
     custom_components.philips_dline_sicp: debug
@@ -216,14 +220,10 @@ logger:
 
 ---
 
-## Notes sur le protocole SICP
+## Contribuer
 
-SICP (Serial/Ethernet Interface Communication Protocol) est un protocole binaire utilisé sur les écrans professionnels Philips. Chaque paquet contient un octet de longueur, l'identifiant du moniteur, un octet de groupe optionnel, un octet de commande, des données optionnelles et un checksum XOR. Le moniteur répond par ACK (succès), NACK (erreur de checksum) ou NAV (commande non supportée par ce firmware).
-
-Cette intégration utilise le cadrage **SICP v2** sur TCP. Si votre moniteur annonce SICP v1.x, essayez de désactiver l'octet de groupe dans les options.
-
----
+Voir [CONTRIBUTING.md](CONTRIBUTING.md). L'historique des versions est dans [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
-MIT — voir [LICENSE](LICENSE)
+MIT, voir [LICENSE](LICENSE).
