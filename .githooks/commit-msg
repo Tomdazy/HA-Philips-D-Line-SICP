@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+#
+# Refuse tout commit dont le message crédite une IA.
+#
+# Appelé par git à chaque commit (hook « commit-msg »), et utilisable à la main :
+#
+#   .githooks/commit-msg <fichier>              vérifie le message contenu dans <fichier>
+#   .githooks/commit-msg --history [plage]      relit les messages déjà commités
+#   .githooks/commit-msg --test                 auto-test des motifs
+#
+# Installation, une fois par clone (le dossier .git n'est pas versionné) :
+#
+#   git config core.hooksPath .githooks
+#
+# Ce qui est cherché, c'est une ATTRIBUTION, pas un nom de produit. Le dépôt parle
+# d'IA (fournisseurs, connecteur MCP, résumés de réunion) : un commit qui PARLE de
+# Claude ou d'Anthropic doit passer, un commit SIGNÉ « Co-Authored-By: Claude » doit
+# être refusé. D'où deux listes de marques :
+#   - une large, cherchée seulement dans les lignes d'attribution « Xxxx-By: … » ;
+#   - une plus courte, cherchée dans le corps du message uniquement derrière un verbe
+#     d'attribution (« generated with », « généré par »), jamais toute seule.
+#
+# Les motifs s'écrivent sans lettre accentuée hors alternance « (e|é) » : le hook peut
+# tourner sous une locale C, où une classe [éà] se compare octet par octet.
+#
+# Contournement : « git commit --no-verify ». Décision consciente, pas un oubli.
+
+set -u
+
+# Marques admises nulle part dans une ligne d'attribution.
+MARQUES_TRAILER='(claude|anthropic|chatgpt|openai|gpt|copilot|gemini|bard|mistral|llama|cursor|codeium|windsurf|aider|devin|codex|llm|bot|assistant|\bia\b|\bai\b)'
+
+# Marques cherchées dans le corps du message, derrière un verbe d'attribution.
+MARQUES_TEXTE='(claude|anthropic|chatgpt|openai|gpt|copilot|gemini|bard|cursor|codeium|windsurf|aider|devin|codex|llm|\bia\b|\bai\b|intelligence artificielle)'
+
+ATTRIBUTIONS='(co-?authored|signed-off|assisted|helped|generated|written|created|reviewed|suggested|made|committed)-by'
+VERBES_EN='(generated|written|created|produced|authored|assisted|built|made|coded|refactored)[[:space:]]+(with|by|using)[[:space:]]+'
+VERBES_FR='(g(e|é)n(e|é)r|(e|é)crit|r(e|é)dig|produit|cr(e|é)|assist|cod(e|é)|fait)[^[:space:]]*[[:space:]]+(avec|par)[[:space:]]+'
+
+MOTIFS=(
+  "^[[:space:]]*${ATTRIBUTIONS}[[:space:]]*:.*${MARQUES_TRAILER}"
+  "${VERBES_EN}.{0,40}${MARQUES_TEXTE}"
+  "${VERBES_FR}.{0,40}${MARQUES_TEXTE}"
+  '🤖'
+  'claude\.ai/code|claude\.com/claude-code'
+  'noreply@anthropic|copilot@'
+)
+
+rouge=''; vert=''; jaune=''; gras=''; fin=''
+if [ -t 2 ]; then rouge=$'\033[31m'; vert=$'\033[32m'; jaune=$'\033[33m'; gras=$'\033[1m'; fin=$'\033[0m'; fi
+
+# Retire ce que git ajoute au message et que l'auteur n'a pas écrit : le diff collé
+# sous la ligne de ciseaux par « commit -v » (il n'est PAS commenté, donc il faut le
+# couper avant), puis les lignes de commentaire.
+nettoyer() {
+  sed '/^#[[:space:]]*-\{3,\}[[:space:]]*>8[[:space:]]*-\{3,\}/,$d' | grep -v '^#'
+}
+
+# Écrit sur stdout les lignes fautives, préfixées de leur numéro. Sort en 1 s'il y en a.
+examiner() {
+  local texte fautes motif
+  texte=$(nettoyer)
+  fautes=''
+  for motif in "${MOTIFS[@]}"; do
+    fautes+=$(printf '%s\n' "$texte" | grep -nEi -- "$motif")$'\n'
+  done
+  fautes=$(printf '%s' "$fautes" | grep -v '^$' | sort -t: -k1,1n -u)
+  [ -z "$fautes" ] && return 0
+  printf '%s\n' "$fautes"
+  return 1
+}
+
+verifier_fichier() {
+  local fichier="$1" fautes
+  [ -f "$fichier" ] || { printf 'commit-msg : fichier introuvable : %s\n' "$fichier" >&2; exit 2; }
+  fautes=$(examiner < "$fichier") && return 0
+
+  {
+    printf '\n%s%s✖ Commit refusé : le message crédite une IA.%s\n\n' "$gras" "$rouge" "$fin"
+    printf '%s\n' "$fautes" | sed 's/^/    /'
+    printf '\n  Retirez ces lignes du message, puis recommencez le commit.\n'
+    printf '  Règle du dépôt (CLAUDE.md) : les commits sont rédigés comme s'\''ils étaient\n'
+    printf '  écrits à la main par le développeur, sans aucune mention d'\''IA.\n\n'
+  } >&2
+  exit 1
+}
+
+# Relit l'historique. git fait lui-même la recherche (les --grep se cumulent en OU),
+# ce qui évite de dérouler des milliers de messages ici.
+verifier_historique() {
+  local plage="${1:-HEAD}" args=() motif sortie
+  for motif in "${MOTIFS[@]}"; do args+=(--grep="$motif"); done
+  sortie=$(git log -E -i --format='%h %ad %an : %s' --date=short "${args[@]}" "$plage" 2>&1) || {
+    printf '%s\n' "$sortie" >&2; exit 2; }
+  if [ -z "$sortie" ]; then
+    printf '%s✔%s aucun commit crédité à une IA dans « %s »\n' "$vert" "$fin" "$plage"
+    return 0
+  fi
+  printf '%s✖ commits crédités à une IA dans « %s » :%s\n' "$rouge" "$plage" "$fin"
+  printf '%s\n' "$sortie" | sed 's/^/    /'
+  return 1
+}
+
+# Auto-test : chaque cas dit ce que le hook doit en faire. « REFUSE » = le message doit
+# être bloqué, « ACCEPTE » = il doit passer. Les cas acceptés comptent autant que les
+# autres : un hook qui refuse les commits parlant du module IA serait désinstallé le jour
+# même.
+auto_test() {
+  local cas attendu message resultat ok=0 ko=0
+  local -a jeu=(
+    "REFUSE|fix: un correctif
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+    "REFUSE|fix: un correctif
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+    "REFUSE|feat: une fonction
+
+Co-authored-by: Copilot <copilot@users.noreply.github.com>"
+    "REFUSE|feat: nouvelle liste (généré par IA)"
+    "REFUSE|chore: note rédigée avec l'aide de ChatGPT"
+    "REFUSE|fix: correction
+
+Assisted-by: Cursor"
+    "REFUSE|docs: notes
+
+Signed-off-by: Devin AI <devin@cognition.ai>"
+    "REFUSE|fix: written by an LLM, reviewed by nobody"
+    "ACCEPTE|fix(webapp): les barres du shell ne décrochent plus du défilement (TI-76)"
+    "ACCEPTE|feat(mcp): expose list_users au connecteur Claude Code"
+    "ACCEPTE|feat(ai): ajoute le fournisseur Anthropic à la recherche"
+    "ACCEPTE|fix(ia): le résumé de réunion tronque les pièces jointes"
+    "ACCEPTE|chore: met à jour la doc générée par le script de build"
+    "ACCEPTE|Merge branch 'claude/essai' into master"
+    "ACCEPTE|fix: un correctif
+# Co-Authored-By: Claude <noreply@anthropic.com>
+# Veuillez saisir le message de validation."
+    "ACCEPTE|fix: un correctif
+# ------------------------ >8 ------------------------
+diff --git a/x b/x
++Co-Authored-By: Claude <noreply@anthropic.com>"
+  )
+
+  for cas in "${jeu[@]}"; do
+    attendu="${cas%%|*}"; message="${cas#*|}"
+    if printf '%s\n' "$message" | examiner >/dev/null; then resultat='ACCEPTE'; else resultat='REFUSE'; fi
+    if [ "$resultat" = "$attendu" ]; then
+      ok=$((ok + 1))
+      printf '  %sOK%s     %-8s %s\n' "$vert" "$fin" "$attendu" "$(printf '%s' "$message" | head -1)"
+    else
+      ko=$((ko + 1))
+      printf '  %sÉCHEC%s  attendu %s, obtenu %s : %s\n' "$rouge" "$fin" "$attendu" "$resultat" "$(printf '%s' "$message" | head -1)"
+    fi
+  done
+
+  printf '\n  %d cas, %d ok, %s%d échec(s)%s\n' "$((ok + ko))" "$ok" "$([ $ko -gt 0 ] && printf '%s' "$rouge")" "$ko" "$fin"
+  [ "$ko" -eq 0 ]
+}
+
+case "${1:-}" in
+  --test)    auto_test; exit ;;
+  --history) verifier_historique "${2:-}"; exit ;;
+  -h|--help|'')
+      printf 'usage : %s <fichier-message> | --history [plage] | --test\n' "$(basename "$0")" >&2
+      printf 'installation : git config core.hooksPath .githooks\n' >&2
+      exit 2 ;;
+  *)         verifier_fichier "$1" ;;
+esac
