@@ -24,6 +24,11 @@ TEXT = {
 SET_TO_GET = {0x18: 0x19, 0x44: 0x45, 0x47: 0x46, 0xAC: 0xAD, 0x32: 0x33,
               0x3A: 0x3B, 0x72: 0x71, 0x77: 0x76, 0x9F: 0x9E}
 LOG: list[bytes] = []
+# Comportements du 55BDL4511D observés en réel :
+# SLEEP : service SICP muet en veille (TCP accepté, aucune réponse)
+# PREFIX : octets livrés avant la prochaine réponse (reste de trame, réponses en retard)
+SLEEP = False
+PREFIX = b""
 WRITERS: set = set()
 
 
@@ -75,7 +80,12 @@ async def client(reader, writer):
         while True:
             n = (await reader.readexactly(1))[0]
             pkt = bytes([n]) + await reader.readexactly(n - 1)
-            writer.write(handle(pkt))
+            if SLEEP:
+                LOG.append(pkt)
+                continue
+            global PREFIX
+            writer.write(PREFIX + handle(pkt))
+            PREFIX = b""
             await writer.drain()
     except asyncio.IncompleteReadError:
         pass
@@ -90,6 +100,8 @@ async def start(port=0):
 
 
 async def stop(server):
+    global SLEEP, PREFIX
+    SLEEP, PREFIX = False, b""
     server.close()
     for writer in list(WRITERS):
         writer.close()

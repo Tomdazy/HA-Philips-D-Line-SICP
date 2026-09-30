@@ -109,3 +109,46 @@ async def test_raw_command_service(hass: HomeAssistant, monitor):
         DOMAIN, "send_raw_command", {"cmd": "0x19"}, blocking=True, return_response=True
     )
     assert result["results"][0]["payload"] == "02"
+
+
+async def test_cache_saved_after_setup(hass: HomeAssistant, monitor):
+    entry = await _setup(hass, monitor)
+    cache = entry.data["cache"]
+    assert cache["sources"] == [0x0D, 0x06, 0x0A, 0x16]
+    assert bytes.fromhex(cache["identity"]["0xA1:00"]) == b"43BDL4550D/00"
+
+
+async def test_sleeping_monitor_still_exposes_tv(hass: HomeAssistant, monitor):
+    """Moniteur muet au démarrage : la TV existe, éteinte, et s'allume par WOL."""
+    from unittest.mock import patch
+
+    fake_monitor.SLEEP = True
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "host": "127.0.0.1", "port": monitor, "monitor_id": 1, "group_id": 0,
+            "include_group": True, "poll_interval": 15, "mac": "a8:4a:63:f3:7f:7e",
+            "cache": {
+                "identity": {"0xA1:00": b"55BDL4511D/00".hex()},
+                "sources": [0x0D, 0x06],
+            },
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    tv = er.async_get(hass).async_get_entity_id(
+        "media_player", DOMAIN, "philips_dline_127.0.0.1_1"
+    )
+    state = hass.states.get(tv)
+    assert state.state == "off"
+    assert state.attributes["source_list"] == ["HDMI 1", "HDMI 2"]
+    device = dr.async_get(hass).async_get_device({(DOMAIN, "philips_dline_127.0.0.1_1")})
+    assert device.model == "55BDL4511D/00"
+
+    with patch(
+        "custom_components.philips_dline_sicp.coordinator.send_magic_packet"
+    ) as wol:
+        await hass.services.async_call("media_player", "turn_on", {"entity_id": tv}, blocking=True)
+    wol.assert_called_once_with("a8:4a:63:f3:7f:7e", "127.0.0.1")

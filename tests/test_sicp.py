@@ -35,3 +35,12 @@ async def test_nack_and_nav(monitor):
     with pytest.raises(SICPNAVError):
         await client.async_get(0x33)
     await client.disconnect()
+
+
+async def test_resync_after_stale_replies(monitor):
+    """Octet orphelin et réponses en retard avant la vraie réponse (55BDL4511D)."""
+    client = PhilipsSICP("127.0.0.1", port=monitor)
+    stale_power = bytes.fromhex("06 01 01 19 01 1e")
+    fake_monitor.PREFIX = b"\x1e" + stale_power * 3
+    assert await client.async_get_text(0xA2, b"\x00") == "2.09"
+    await client.disconnect()
