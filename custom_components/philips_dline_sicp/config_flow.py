@@ -20,6 +20,7 @@ from .const import (
     CONF_GROUP_ID,
     CONF_HOST,
     CONF_INCLUDE_GROUP,
+    CONF_MAC,
     CONF_MONITOR_ID,
     CONF_POLL_INTERVAL,
     CONF_PORT,
@@ -43,6 +44,7 @@ from .const import (
     source_name,
 )
 from .sicp import PhilipsSICP, SICPError
+from .wol import normalize_mac
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,6 +95,10 @@ def _options_schema(current: dict[str, Any], available: list[int]) -> vol.Schema
             vol.Optional(
                 CONF_VOLUME_STEP, default=current.get(CONF_VOLUME_STEP, DEFAULT_VOLUME_STEP)
             ): vol.All(int, vol.Range(min=1, max=20)),
+            # Vide = adresse détectée automatiquement
+            vol.Optional(
+                CONF_MAC, description={"suggested_value": current.get(CONF_MAC, "")}
+            ): str,
         }
     )
 
@@ -100,6 +106,8 @@ def _options_schema(current: dict[str, Any], available: list[int]) -> vol.Schema
 def _normalize(user_input: dict[str, Any]) -> dict[str, Any]:
     result = dict(user_input)
     result[CONF_SOURCES] = [int(c) for c in user_input.get(CONF_SOURCES, [])]
+    if CONF_MAC in result:
+        result[CONF_MAC] = normalize_mac(result[CONF_MAC]) or ""
     return result
 
 

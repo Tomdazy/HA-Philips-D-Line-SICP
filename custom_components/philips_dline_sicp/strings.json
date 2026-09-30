@@ -21,7 +21,8 @@
           "slow_poll_interval": "Settings refresh interval (seconds)",
           "volume_min": "Minimum volume",
           "volume_max": "Maximum volume",
-          "volume_step": "Volume step"
+          "volume_step": "Volume step",
+          "mac": "MAC address for Wake on LAN (empty = auto-detected)"
         }
       }
     },
@@ -44,7 +45,8 @@
           "slow_poll_interval": "Settings refresh interval (seconds)",
           "volume_min": "Minimum volume",
           "volume_max": "Maximum volume",
-          "volume_step": "Volume step"
+          "volume_step": "Volume step",
+          "mac": "MAC address for Wake on LAN (empty = auto-detected)"
         }
       }
     }

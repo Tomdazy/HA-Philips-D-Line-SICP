@@ -128,17 +128,25 @@ class PhilipsDLineMediaPlayer(PhilipsDLineEntity, MediaPlayerEntity):
     # ──────────────────────────────────────────
 
     @property
-    def state(self) -> MediaPlayerState | None:
-        if self.coordinator.power is None:
-            return None
-        return MediaPlayerState.ON if self.coordinator.power else MediaPlayerState.OFF
+    def available(self) -> bool:
+        # Toujours disponible : un moniteur muet est en veille, et HomeKit doit
+        # pouvoir le rallumer (par Wake on LAN si le SICP ne répond plus).
+        return True
+
+    @property
+    def state(self) -> MediaPlayerState:
+        if self.coordinator.reachable and self.coordinator.power:
+            return MediaPlayerState.ON
+        return MediaPlayerState.OFF
 
     def _payload(self, query) -> bytes | None:
+        if self.state is MediaPlayerState.OFF:
+            return None
         return self.coordinator.payload(query)
 
     @property
     def _speaker_volume(self) -> int | None:
-        payload = self._payload(Q_VOLUME)
+        payload = self.coordinator.payload(Q_VOLUME)
         return payload[0] if payload else None
 
     @property
@@ -190,7 +198,7 @@ class PhilipsDLineMediaPlayer(PhilipsDLineEntity, MediaPlayerEntity):
         await self.coordinator.async_set_power(False)
 
     async def _ensure_on(self) -> None:
-        if self.coordinator.power is False:
+        if self.state is MediaPlayerState.OFF:
             await self.coordinator.async_set_power(True)
 
     async def _set_speaker_volume(self, level: int) -> None:
@@ -251,7 +259,7 @@ class PhilipsDLineMediaPlayer(PhilipsDLineEntity, MediaPlayerEntity):
     async def _set_video_param(self, index: int, value: int) -> None:
         # 0xFF = « inchangé » (SICP ≥ 2.09) ; on repart de la dernière lecture
         # pour rester compatible avec les firmwares plus anciens.
-        current = self._payload(Q_VIDEO)
+        current = self.coordinator.payload(Q_VIDEO)
         frame = bytearray(current[:7]) if current and len(current) >= 7 else bytearray([0xFF] * 7)
         frame[index] = max(0, min(100, value))
         await self.coordinator.async_command(CMD_VIDEO_SET, bytes(frame), refresh=[Q_VIDEO])

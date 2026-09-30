@@ -93,6 +93,7 @@ class PhilipsSICP:
 
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
+        self._buffer = bytearray()
         self._lock = asyncio.Lock()
 
     # ──────────────────────────────────────────
@@ -115,6 +116,7 @@ class PhilipsSICP:
             ) from exc
 
     def _disconnect(self) -> None:
+        self._buffer.clear()
         if self._writer is not None:
             try:
                 self._writer.close()
@@ -143,24 +145,67 @@ class PhilipsSICP:
             chk ^= b
         return packet + bytes([chk])
 
-    async def _read_frame(self, timeout: float) -> bytes:
-        """Lit exactement une trame en s'appuyant sur l'octet MsgSize."""
-        assert self._reader is not None
-        size = await asyncio.wait_for(self._reader.readexactly(1), timeout=timeout)
-        length = size[0]
-        if length < 4 or length > 0x28:
-            raise SICPError(f"Octet MsgSize invalide : 0x{length:02x}")
-        rest = await asyncio.wait_for(self._reader.readexactly(length - 1), timeout=timeout)
-        frame = size + rest
+    def _extract_frame(self) -> bytes | None:
+        """Cherche une trame valide dans le tampon et la retire.
 
-        chk = 0
-        for b in frame[:-1]:
-            chk ^= b
-        if chk != frame[-1]:
-            _LOGGER.debug(
-                "SICP checksum attendu 0x%02x reçu 0x%02x : %s", chk, frame[-1], frame.hex()
-            )
-        return frame
+        Certains moniteurs (Android, en veille notamment) livrent des réponses
+        en retard, parfois tronquées, voire destinées à une autre connexion :
+        on se resynchronise sur une trame dont la taille, le Monitor ID et le
+        checksum sont cohérents, en jetant ce qui précède.
+        """
+        buf = self._buffer
+        for start in range(len(buf)):
+            length = buf[start]
+            if length < 4 or length > 0x28 or start + length > len(buf):
+                continue
+            frame = bytes(buf[start:start + length])
+            if frame[1] != self.monitor_id:
+                continue
+            chk = 0
+            for b in frame[:-1]:
+                chk ^= b
+            if chk != frame[-1]:
+                continue
+            if start:
+                _LOGGER.debug("SICP octets ignorés : %s", bytes(buf[:start]).hex())
+            del buf[:start + length]
+            return frame
+        # Rien de valide : on ne garde que la fin, qui peut être un début de trame
+        if len(buf) > 0x28:
+            del buf[:-0x28]
+        return None
+
+    async def _read_frame(self, timeout: float) -> bytes:
+        """Lit la prochaine trame valide, dans le délai imparti."""
+        assert self._reader is not None
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            frame = self._extract_frame()
+            if frame is not None:
+                return frame
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise asyncio.TimeoutError
+            chunk = await asyncio.wait_for(self._reader.read(256), timeout=remaining)
+            if not chunk:
+                raise asyncio.IncompleteReadError(bytes(self._buffer), None)
+            self._buffer.extend(chunk)
+
+    async def _drain_stale(self) -> None:
+        """Jette les réponses arrivées en retard avant d'envoyer une commande."""
+        assert self._reader is not None
+        while True:
+            try:
+                chunk = await asyncio.wait_for(self._reader.read(256), timeout=0.01)
+            except (TimeoutError, asyncio.TimeoutError):
+                break
+            if not chunk:
+                raise asyncio.IncompleteReadError(b"", None)
+            self._buffer.extend(chunk)
+        if self._buffer:
+            _LOGGER.debug("SICP réponses en retard ignorées : %s", bytes(self._buffer).hex())
+            self._buffer.clear()
 
     def _split_reply(self, frame: bytes) -> tuple[int, bytes]:
         """Retourne (code écho, payload) d'une trame de réponse."""
@@ -178,13 +223,14 @@ class PhilipsSICP:
         packet = self.build_packet(command, data)
         await self._ensure_connected()
         assert self._writer is not None
+        await self._drain_stale()
         _LOGGER.debug("SICP -> %s", packet.hex())
         self._writer.write(packet)
         await self._writer.drain()
 
-        # Une réponse tardive à une commande précédente peut traîner dans le
-        # tampon : on l'ignore et on lit la suivante (au plus deux fois).
-        for _ in range(3):
+        # Une réponse tardive à une commande précédente peut encore arriver :
+        # on l'ignore et on lit la suivante.
+        for _ in range(4):
             frame = await self._read_frame(timeout)
             _LOGGER.debug("SICP <- %s", frame.hex())
             echo, payload = self._split_reply(frame)

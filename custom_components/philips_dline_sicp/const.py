@@ -26,6 +26,7 @@ CONF_SOURCES       = "sources"
 CONF_VOLUME_MIN    = "volume_min"
 CONF_VOLUME_MAX    = "volume_max"
 CONF_VOLUME_STEP   = "volume_step"
+CONF_MAC           = "mac"
 
 # Valeurs par défaut
 DEFAULT_PORT          = 5000

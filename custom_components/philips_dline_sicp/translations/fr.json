@@ -21,7 +21,8 @@
           "slow_poll_interval": "Intervalle de rafraîchissement des réglages (secondes)",
           "volume_min": "Volume minimum",
           "volume_max": "Volume maximum",
-          "volume_step": "Pas du volume"
+          "volume_step": "Pas du volume",
+          "mac": "Adresse MAC pour le Wake on LAN (vide = détection automatique)"
         }
       }
     },
@@ -44,7 +45,8 @@
           "slow_poll_interval": "Intervalle de rafraîchissement des réglages (secondes)",
           "volume_min": "Volume minimum",
           "volume_max": "Volume maximum",
-          "volume_step": "Pas du volume"
+          "volume_step": "Pas du volume",
+          "mac": "Adresse MAC pour le Wake on LAN (vide = détection automatique)"
         }
       }
     }
