@@ -94,7 +94,7 @@ L'intégration teste la connexion avant d'enregistrer.
 | Pas du volume | `2` | Incrément des boutons volume + / − |
 | Adresse MAC | détectée | Pour l'allumage par Wake on LAN ; laisser vide pour la détection automatique |
 
-En veille, seule l'alimentation est interrogée : le moniteur refuse la plupart des autres commandes dans cet état.
+L'alimentation est relue toutes les 5 s, quel que soit l'intervalle d'état, pour détecter vite un allumage à la télécommande. En veille, seule l'alimentation est interrogée : le moniteur refuse la plupart des autres commandes dans cet état. Après une commande marche/arrêt, l'état s'affiche immédiatement, puis tout est relu toutes les 2 s pendant le démarrage.
 
 ---
 

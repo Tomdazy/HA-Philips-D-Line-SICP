@@ -94,7 +94,7 @@ The integration tests the connection before saving.
 | Volume step | `2` | Increment of the volume + / − buttons |
 | MAC address | detected | For Wake on LAN power-on; leave empty for auto-detection |
 
-In standby only the power state is polled: the display rejects most other commands in that state.
+The power state is read every 5 s, whatever the state interval, so a power-on from the remote shows up quickly. In standby only the power state is polled: the display rejects most other commands in that state. After a power command the new state shows immediately, then everything is re-read every 2 s while the display boots.
 
 ---
 

@@ -3,6 +3,16 @@
 Toutes les évolutions notables de l'intégration sont consignées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versions selon [SemVer](https://semver.org/lang/fr/).
 
+## [2.0.2] - 2026-09-30
+
+### Corrigé
+
+- Marche et arrêt se reflètent immédiatement : l'état demandé s'affiche tout de suite, puis l'alimentation est relue chaque seconde jusqu'à confirmation par le moniteur (60 s au plus). Avant, la télévision repassait à « éteinte » pendant le démarrage et il fallait attendre le cycle suivant.
+- Après un allumage (commande, télécommande ou réveil), toutes les informations sont relues toutes les 2 s pendant 30 s, réglages lents compris. Une commande refusée pendant le démarrage est retentée au passage suivant.
+- Un allumage à la télécommande est détecté en 5 s au plus : l'alimentation est désormais relue toutes les 5 s, indépendamment de l'intervalle d'état.
+- Allumer le rétroéclairage sur un écran en veille allume l'écran sans envoyer d'autre commande pendant son démarrage.
+- Logo et icône conformes au format Home Assistant (transparence, recadrage, 256 px et variantes `@2x` en 512 px pour les écrans haute densité). Home Assistant 2026.3 ou plus récent est nécessaire pour les images locales.
+
 ## [2.0.1] - 2026-09-30
 
 ### Corrigé
@@ -94,6 +104,7 @@ Réécriture complète d'après la spécification **SICP 2.09**.
 
 - Version initiale : alimentation, source, volume, sourdine, luminosité et contraste en attributs.
 
+[2.0.2]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.4...v2.0.0
 [1.0.4]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.3...v1.0.4
