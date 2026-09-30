@@ -92,6 +92,7 @@ The integration tests the connection before saving.
 | Settings refresh interval | `300` s | All other settings |
 | Minimum / maximum volume | `0` / `100` | Volume slider bounds |
 | Volume step | `2` | Increment of the volume + / − buttons |
+| MAC address | detected | For Wake on LAN power-on; leave empty for auto-detection |
 
 In standby only the power state is polled: the display rejects most other commands in that state.
 
@@ -205,7 +206,9 @@ automation:
 | Symptom | What to check |
 |---|---|
 | "Cannot reach the display" | IP, port 5000 (`nc -zv <ip> 5000`) and network control in the OSD |
-| Power-on does not work | Set APM / ECO mode so the network stays active in standby |
+| Power-on does not work | Set APM / ECO mode so the network stays active in standby, and enable **Wake on LAN** on the display ("Wake on LAN" switch or OSD menu): when SICP no longer answers, the integration powers the screen on with a magic packet |
+| The display does not answer at all in standby | Expected on some Android models (e.g. 55BDL4511D): the TV shows as "off" and powers back on through Wake on LAN. Check the MAC address in the options if auto-detection failed. |
+| Random replies, lost commands | Only one program may drive the SICP port: disable any other controller (Homebridge plugin, Crestron, CMND…). The display sends its replies on the most recently opened connection. |
 | An entity stays unavailable | Your model does not support that command. Disable the entity. |
 | Picture settings unavailable on an Android source | Expected on some models (BDL3452T, BDL3651T, BDL3550Q, BDL4550D): SICP only adjusts the picture of external inputs there |
 | No reply at all | Try unticking "Include the Group byte" (very old firmware) |

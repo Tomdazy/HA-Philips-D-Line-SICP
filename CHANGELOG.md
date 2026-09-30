@@ -3,6 +3,19 @@
 Toutes les évolutions notables de l'intégration sont consignées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versions selon [SemVer](https://semver.org/lang/fr/).
 
+## [2.0.1] - 2026-09-30
+
+### Corrigé
+
+- L'intégration démarre même si le moniteur ne répond pas. Certains modèles (55BDL4511D notamment) coupent leur service SICP en veille tout en gardant le réseau actif. Avant, l'entrée restait bloquée sur « Échec de la configuration » et la télévision disparaissait de HomeKit.
+- La télévision reste disponible et s'affiche « éteinte » quand le moniteur ne répond pas : HomeKit peut toujours la rallumer.
+- Lecture des trames resynchronisée sur le Monitor ID et le checksum. Les octets orphelins et les réponses en retard (que ces moniteurs livrent parfois sur une autre connexion) sont ignorés, et le tampon est purgé avant chaque commande.
+
+### Ajouté
+
+- Allumage par **Wake on LAN** quand la commande SICP reste sans réponse. L'adresse MAC est détectée automatiquement (table ARP) ou se saisit dans les options.
+- Modèle, firmware, numéro de série et liste des entrées sont mémorisés dans l'entrée de configuration : la fiche appareil et les entrées HomeKit restent stables même si Home Assistant redémarre pendant la veille du moniteur.
+
 ## [2.0.0] - 2026-09-29
 
 Réécriture complète d'après la spécification **SICP 2.09**.
@@ -81,6 +94,7 @@ Réécriture complète d'après la spécification **SICP 2.09**.
 
 - Version initiale : alimentation, source, volume, sourdine, luminosité et contraste en attributs.
 
+[2.0.1]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.4...v2.0.0
 [1.0.4]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.2...v1.0.3

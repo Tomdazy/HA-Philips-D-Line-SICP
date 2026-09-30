@@ -92,6 +92,7 @@ L'intégration teste la connexion avant d'enregistrer.
 | Rafraîchissement des réglages | `300` s | Tous les autres réglages |
 | Volume minimum / maximum | `0` / `100` | Bornes du curseur de volume |
 | Pas du volume | `2` | Incrément des boutons volume + / − |
+| Adresse MAC | détectée | Pour l'allumage par Wake on LAN ; laisser vide pour la détection automatique |
 
 En veille, seule l'alimentation est interrogée : le moniteur refuse la plupart des autres commandes dans cet état.
 
@@ -205,7 +206,9 @@ automation:
 | Symptôme | Piste |
 |---|---|
 | « Impossible de joindre le moniteur » | Vérifiez l'IP, le port 5000 (`nc -zv <ip> 5000`) et le contrôle réseau dans l'OSD |
-| La mise en marche ne fonctionne pas | Réglez APM / mode ECO pour que le réseau reste actif en veille |
+| La mise en marche ne fonctionne pas | Réglez APM / mode ECO pour que le réseau reste actif en veille, et activez **Wake on LAN** sur le moniteur (interrupteur « Wake on LAN » ou menu OSD) : quand le SICP ne répond plus, l'intégration allume l'écran par paquet magique |
+| Le moniteur ne répond plus du tout en veille | Normal sur certains modèles Android (ex. 55BDL4511D) : la TV s'affiche « éteinte » et se rallume par Wake on LAN. Vérifiez l'adresse MAC dans les options si la détection automatique a échoué. |
+| Réponses aléatoires, commandes perdues | Un seul logiciel doit piloter le port SICP : désactivez tout autre contrôleur (plugin Homebridge, Crestron, CMND…). Le moniteur livre ses réponses sur la dernière connexion ouverte. |
 | Une entité reste indisponible | Votre modèle ne supporte pas la commande. Désactivez l'entité. |
 | Les réglages d'image sont indisponibles sur une source Android | Normal sur certains modèles (BDL3452T, BDL3651T, BDL3550Q, BDL4550D) : SICP n'y règle l'image que sur les sources externes |
 | Aucune réponse du tout | Essayez de décocher « Inclure l'octet Group » (très vieux firmwares) |
