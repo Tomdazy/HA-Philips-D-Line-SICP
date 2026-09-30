@@ -29,6 +29,9 @@ LOG: list[bytes] = []
 # PREFIX : octets livrés avant la prochaine réponse (reste de trame, réponses en retard)
 SLEEP = False
 PREFIX = b""
+# Nombre de Get power qui répondent encore « veille » après un allumage (démarrage lent)
+BOOT_DELAY = 0
+_booting = 0
 WRITERS: set = set()
 
 
@@ -47,6 +50,12 @@ def status(code: int) -> bytes:
 def handle(pkt: bytes) -> bytes:
     LOG.append(pkt)
     cmd, data = pkt[3], pkt[4:-1]
+    global _booting
+    if cmd == 0x18 and data[:1] == b"\x02" and BOOT_DELAY:
+        _booting = BOOT_DELAY
+    if cmd == 0x19 and _booting:
+        _booting -= 1
+        return frame(bytes([0x19, 0x01]))
     if (cmd, data[0] if data else None) in TEXT:
         return frame(bytes([cmd]) + TEXT[(cmd, data[0] if data else None)])
     if cmd in STATE:
@@ -100,8 +109,8 @@ async def start(port=0):
 
 
 async def stop(server):
-    global SLEEP, PREFIX
-    SLEEP, PREFIX = False, b""
+    global SLEEP, PREFIX, BOOT_DELAY, _booting
+    SLEEP, PREFIX, BOOT_DELAY, _booting = False, b"", 0, 0
     server.close()
     for writer in list(WRITERS):
         writer.close()

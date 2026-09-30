@@ -152,3 +152,56 @@ async def test_sleeping_monitor_still_exposes_tv(hass: HomeAssistant, monitor):
     ) as wol:
         await hass.services.async_call("media_player", "turn_on", {"entity_id": tv}, blocking=True)
     wol.assert_called_once_with("a8:4a:63:f3:7f:7e", "127.0.0.1")
+
+
+async def test_power_on_is_reflected_immediately(hass: HomeAssistant, monitor):
+    """L'état demandé s'affiche tout de suite, puis le moniteur le confirme."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    fake_monitor.STATE[0x19] = b"\x01"
+    await _setup(hass, monitor)
+    tv = er.async_get(hass).async_get_entity_id(
+        "media_player", DOMAIN, "philips_dline_127.0.0.1_1"
+    )
+    assert hass.states.get(tv).state == "off"
+
+    # Démarrage lent : les 3 premiers Get power répondent encore « veille »
+    fake_monitor.BOOT_DELAY = 3
+    await hass.services.async_call("media_player", "turn_on", {"entity_id": tv}, blocking=True)
+    assert hass.states.get(tv).state == "on"
+
+    fake_monitor.STATE[0x3B] = b"\x06"  # changé pendant la veille
+    # Les rafraîchissements sont calés sur la seconde entière : pas de 3 s
+    for step in range(1, 6):
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=3 * step))
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert hass.states.get(tv).state == "on"
+
+    # Confirmé : le boost relit aussi les réglages lents sans attendre 5 minutes
+    fmt = _entity_id(hass, "select", "picture_format")
+    assert hass.states.get(fmt).state == "wide_16_9"
+    assert hass.states.get(tv).attributes["source"] == "HDMI 1"
+
+
+async def test_remote_power_on_detected_quickly(hass: HomeAssistant, monitor):
+    """Allumage à la télécommande : vu au prochain relevé d'alimentation (5 s)."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    fake_monitor.STATE[0x19] = b"\x01"
+    await _setup(hass, monitor)
+    tv = er.async_get(hass).async_get_entity_id(
+        "media_player", DOMAIN, "philips_dline_127.0.0.1_1"
+    )
+    assert hass.states.get(tv).state == "off"
+
+    fake_monitor.STATE[0x19] = b"\x02"
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get(tv).state == "on"
+    assert hass.states.get(tv).attributes["source"] == "HDMI 1"
