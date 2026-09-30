@@ -47,9 +47,7 @@ class PhilipsBacklight(PhilipsDLineEntity, LightEntity):
 
     @property
     def is_on(self) -> bool | None:
-        if self.coordinator.power is None:
-            return None
-        if not self.coordinator.power:
+        if not self.coordinator.is_on:
             return False
         backlight = self.coordinator.payload(Q_BACKLIGHT)
         # 0x71 : 0x00 = rétroéclairage allumé, 0x01 = éteint
@@ -63,8 +61,11 @@ class PhilipsBacklight(PhilipsDLineEntity, LightEntity):
         return round(video[0] * 255 / 100)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        if self.coordinator.power is False:
+        if not self.coordinator.is_on:
+            # Pendant le démarrage le moniteur refuse les autres commandes ;
+            # le rétroéclairage s'allume de lui-même avec l'écran.
             await self.coordinator.async_set_power(True)
+            return
         backlight = self.coordinator.payload(Q_BACKLIGHT)
         if backlight and backlight[0] != 0x00:
             await self.coordinator.async_command(

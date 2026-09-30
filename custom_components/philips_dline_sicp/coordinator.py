@@ -41,6 +41,17 @@ MAX_TIMEOUT_FAILURES = 2
 # Juste après l'allumage, le moniteur répond NAV à presque tout
 WARMUP_SECONDS = 60
 
+# Alimentation relue souvent pour voir vite un allumage à la télécommande
+POWER_POLL_SECONDS = 5
+# Après une commande marche/arrêt : on relit l'alimentation chaque seconde
+# jusqu'à ce que le moniteur confirme (ou abandon au bout du délai)
+TRANSITION_INTERVAL = 1
+TRANSITION_TIMEOUT  = 60
+TRANSITION_READ_TIMEOUT = 1.0
+# Après un allumage : tout est relu toutes les 2 s le temps que le moniteur démarre
+BOOST_INTERVAL = 2
+BOOST_SECONDS  = 30
+
 # Requêtes d'identification lues au démarrage (DeviceInfo)
 Q_MODEL        = (CMD_MODEL_GET, b"\x00")
 Q_FIRMWARE     = (CMD_MODEL_GET, b"\x01")
@@ -74,13 +85,12 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         mac: str | None = None,
         cache: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(seconds=poll_interval) if poll_interval > 0 else None,
+        self._base_interval = (
+            timedelta(seconds=min(poll_interval, POWER_POLL_SECONDS)) if poll_interval > 0 else None
         )
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=self._base_interval)
         self.client = client
+        self.poll_interval = poll_interval
         self.slow_poll_interval = max(slow_poll_interval, poll_interval)
         self.mac = mac
 
@@ -98,6 +108,11 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._failures: dict[Query, int] = {}
         self._skip_until: dict[Query, float] = {}
         self._on_since = 0.0
+        self._last_fast = 0.0
+        # Commande marche/arrêt en attente de confirmation par le moniteur
+        self._target: bool | None = None
+        self._transition_until = 0.0
+        self._boost_until = 0.0
 
     # ──────────────────────────────────────────
     # Abonnements des entités
@@ -130,6 +145,28 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def is_supported(self, query: Query) -> bool:
         return self._skip_until.get(query, 0) <= time.monotonic()
+
+    @property
+    def in_transition(self) -> bool:
+        return self._target is not None and time.monotonic() < self._transition_until
+
+    @property
+    def is_on(self) -> bool:
+        """État affiché : la demande en cours, sinon le dernier état confirmé."""
+        if self.in_transition:
+            return bool(self._target)
+        return self.reachable and bool(self.power)
+
+    def _boosting(self, now: float) -> bool:
+        return now < self._boost_until
+
+    def _set_interval(self, now: float) -> None:
+        if self.in_transition:
+            self.update_interval = timedelta(seconds=TRANSITION_INTERVAL)
+        elif self._boosting(now):
+            self.update_interval = timedelta(seconds=BOOST_INTERVAL)
+        else:
+            self.update_interval = self._base_interval
 
     # ──────────────────────────────────────────
     # Cache d'identité (persisté dans l'entrée de configuration)
@@ -195,6 +232,9 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SICPNAVError:
             if time.monotonic() - self._on_since >= WARMUP_SECONDS:
                 self._mark_failure(query, limit=MAX_NAV_FAILURES)
+            elif self.power:
+                # Moniteur en cours de démarrage : on réessaie au prochain passage
+                self._pending.add(query)
         except SICPTimeoutError:
             self._mark_failure(query, limit=MAX_TIMEOUT_FAILURES)
 
@@ -211,39 +251,68 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._pending.discard(query)
             self.payloads.pop(query, None)
 
+    def _snapshot(self) -> dict[str, Any]:
+        return {"power": self.is_on, "payloads": dict(self.payloads)}
+
     async def _async_update_data(self) -> dict[str, Any]:
+        now = time.monotonic()
+        transition = self.in_transition
+        if self._target is not None and not transition:
+            _LOGGER.debug("Le moniteur n'a pas confirmé le changement d'alimentation")
+            self._target = None
+
         try:
-            power = await self.client.async_get_power()
+            # Délai court si l'on attend une confirmation ou si le moniteur dort
+            power = await self.client.async_get_power(
+                timeout=TRANSITION_READ_TIMEOUT if transition or not self.reachable else None
+            )
         except SICPError as exc:
+            if transition:
+                # Moniteur en train de démarrer ou de s'endormir : on garde l'état demandé
+                self._set_interval(now)
+                return self._snapshot()
             self.reachable = False
+            self._set_interval(now)
             raise UpdateFailed(f"Le moniteur ne répond pas : {exc}") from exc
 
         was_on = self.power if self.reachable else None
         self.reachable = True
         self.power = power
-        if power and was_on is False:
-            self._on_since = time.monotonic()
+
+        if transition:
+            if power != self._target:
+                # Pas encore confirmé : on n'interroge rien d'autre pour l'instant
+                self._set_interval(now)
+                return self._snapshot()
+            self._target = None
+
+        if power and was_on is not True:
+            # Allumage (commande, télécommande ou réveil) : tout relire rapidement
+            self._on_since = now
+            self._boost_until = now + BOOST_SECONDS
+            self._last_slow = 0.0
 
         # En veille, la plupart des commandes répondent NAV : on n'insiste pas.
         if power:
-            now = time.monotonic()
-            slow_due = (
-                was_on is not True
-                or now - self._last_slow >= self.slow_poll_interval
-            )
+            boost = self._boosting(now)
+            fast_due = boost or now - self._last_fast >= self.poll_interval - 0.5
+            slow_due = now - self._last_slow >= self.slow_poll_interval
             for query, tier in list(self._tiers.items()):
                 if query[0] == CMD_POWER_GET:
                     continue
                 if (
                     query in self._pending
-                    or tier == TIER_FAST
+                    or (tier == TIER_FAST and fast_due)
                     or (tier == TIER_SLOW and slow_due)
                 ):
                     await self._fetch(query)
+            if fast_due:
+                self._last_fast = now
             if slow_due:
                 self._last_slow = now
 
-        return {"power": power, "payloads": dict(self.payloads)}
+        self._set_interval(now)
+        return self._snapshot()
 
     # ──────────────────────────────────────────
     # Commandes
@@ -254,7 +323,7 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for query in queries:
             self._skip_until.pop(query, None)
             await self._fetch(query)
-        self.async_set_updated_data({"power": self.power, "payloads": dict(self.payloads)})
+        self.async_set_updated_data(self._snapshot())
 
     async def async_command(
         self,
@@ -285,9 +354,10 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self.hass.async_add_executor_job(
                 send_magic_packet, self.mac, self.client.host
             )
-        if on and self.power is False:
-            self._on_since = time.monotonic()
-        self.power = on
-        self.async_set_updated_data({"power": on, "payloads": dict(self.payloads)})
-        # L'écran met quelques secondes à accepter les autres commandes
-        await self.async_request_refresh()
+        now = time.monotonic()
+        self._target = on
+        self._transition_until = now + TRANSITION_TIMEOUT
+        self._set_interval(now)
+        # Publie tout de suite l'état demandé ; le rafraîchissement suivant est
+        # replanifié à TRANSITION_INTERVAL et confirmera l'état réel.
+        self.async_set_updated_data(self._snapshot())

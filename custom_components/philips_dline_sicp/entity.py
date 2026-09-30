@@ -89,7 +89,7 @@ class PhilipsDLineEntity(CoordinatorEntity[PhilipsDLineCoordinator]):
     def available(self) -> bool:
         if not super().available:
             return False
-        if not self.available_when_off and self.coordinator.power is False:
+        if not self.available_when_off and not self.coordinator.is_on:
             return False
         if self.query is not None:
             return self.payload is not None

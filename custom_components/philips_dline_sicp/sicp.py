@@ -307,8 +307,8 @@ class PhilipsSICP:
     # Raccourcis
     # ──────────────────────────────────────────
 
-    async def async_get_power(self) -> bool:
-        payload = await self.async_get(CMD_POWER_GET)
+    async def async_get_power(self, timeout: float | None = None) -> bool:
+        payload = await self.async_get(CMD_POWER_GET, timeout=timeout or READ_TIMEOUT)
         return bool(payload) and payload[0] == 0x02
 
     async def async_set_power(self, on: bool) -> None:

@@ -135,9 +135,7 @@ class PhilipsDLineMediaPlayer(PhilipsDLineEntity, MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState:
-        if self.coordinator.reachable and self.coordinator.power:
-            return MediaPlayerState.ON
-        return MediaPlayerState.OFF
+        return MediaPlayerState.ON if self.coordinator.is_on else MediaPlayerState.OFF
 
     def _payload(self, query) -> bytes | None:
         if self.state is MediaPlayerState.OFF:
