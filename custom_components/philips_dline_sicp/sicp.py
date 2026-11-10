@@ -47,6 +47,9 @@ READ_TIMEOUT    = 2.0
 # La doc impose d'attendre la réponse avant la commande suivante ; on garde
 # une petite respiration supplémentaire, certains firmwares saturent sinon.
 INTER_CMD_DELAY = 0.05
+# Un ACK/NACK/NAV reçu pour un Get peut être la réponse en retard d'une
+# commande précédente : on laisse ce délai au vrai rapport pour arriver.
+STALE_STATUS_WAIT = 0.1
 
 
 class SICPError(Exception):
@@ -218,7 +221,28 @@ class PhilipsSICP:
     # Échange
     # ──────────────────────────────────────────
 
-    async def _exchange(self, command: int, data: bytes, timeout: float) -> tuple[int, bytes]:
+    async def _report_after_status(self, command: int) -> tuple[int, bytes] | None:
+        """Cherche, juste après un statut, le rapport attendu pour ce Get.
+
+        Un Get reçoit soit un rapport, soit un statut NACK/NAV, jamais les
+        deux : si le rapport suit, le statut répondait à une commande précédente.
+        """
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + STALE_STATUS_WAIT
+        while (remaining := deadline - loop.time()) > 0:
+            try:
+                frame = await self._read_frame(remaining)
+            except (TimeoutError, asyncio.TimeoutError, asyncio.IncompleteReadError):
+                return None
+            echo, payload = self._split_reply(frame)
+            if echo == command:
+                _LOGGER.debug("SICP statut en retard ignoré (0x%02x)", command)
+                return echo, payload
+        return None
+
+    async def _exchange(
+        self, command: int, data: bytes, timeout: float, expect_report: bool = False
+    ) -> tuple[int, bytes]:
         """Envoie une trame et retourne la réponse qui lui correspond."""
         packet = self.build_packet(command, data)
         await self._ensure_connected()
@@ -234,23 +258,32 @@ class PhilipsSICP:
             frame = await self._read_frame(timeout)
             _LOGGER.debug("SICP <- %s", frame.hex())
             echo, payload = self._split_reply(frame)
-            if echo in (command, CMD_COMM_CONTROL):
+            if echo == command:
+                return echo, payload
+            if echo == CMD_COMM_CONTROL:
+                if expect_report:
+                    return await self._report_after_status(command) or (echo, payload)
                 return echo, payload
             _LOGGER.debug("SICP trame ignorée (écho 0x%02x ≠ 0x%02x)", echo, command)
         raise SICPError(f"Aucune réponse cohérente pour la commande 0x{command:02x}")
 
     async def send(
-        self, command: int, data: bytes = b"", timeout: float = READ_TIMEOUT
+        self,
+        command: int,
+        data: bytes = b"",
+        timeout: float = READ_TIMEOUT,
+        expect_report: bool = False,
     ) -> tuple[int, bytes]:
         """Envoie une commande brute ; retourne (code écho, payload).
 
+        expect_report : commande Get, dont la réponse normale est un rapport.
         Réessaie une fois sur une connexion neuve si la connexion
         persistante a été fermée par le moniteur.
         """
         async with self._lock:
             for attempt in (1, 2):
                 try:
-                    result = await self._exchange(command, data, timeout)
+                    result = await self._exchange(command, data, timeout, expect_report)
                     await asyncio.sleep(INTER_CMD_DELAY)
                     return result
                 except (asyncio.IncompleteReadError, ConnectionResetError,
@@ -291,7 +324,7 @@ class PhilipsSICP:
         self, command: int, data: bytes = b"", timeout: float = READ_TIMEOUT
     ) -> bytes:
         """Commande Get : retourne les octets DATA[1..N] du rapport."""
-        echo, payload = await self.send(command, data, timeout)
+        echo, payload = await self.send(command, data, timeout, expect_report=True)
         self._raise_for_status(command, echo, payload)
         if echo == CMD_COMM_CONTROL:
             # ACK générique à la place d'un rapport : aucune donnée exploitable
@@ -307,8 +340,8 @@ class PhilipsSICP:
     # Raccourcis
     # ──────────────────────────────────────────
 
-    async def async_get_power(self, timeout: float | None = None) -> bool:
-        payload = await self.async_get(CMD_POWER_GET, timeout=timeout or READ_TIMEOUT)
+    async def async_get_power(self) -> bool:
+        payload = await self.async_get(CMD_POWER_GET)
         return bool(payload) and payload[0] == 0x02
 
     async def async_set_power(self, on: bool) -> None:

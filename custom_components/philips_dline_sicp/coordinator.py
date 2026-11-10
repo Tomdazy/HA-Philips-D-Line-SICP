@@ -43,11 +43,13 @@ WARMUP_SECONDS = 60
 
 # Alimentation relue souvent pour voir vite un allumage à la télécommande
 POWER_POLL_SECONDS = 5
+# Lectures d'alimentation ratées d'affilée avant d'afficher l'écran éteint :
+# une réponse perdue ou en retard ne doit pas suffire
+MAX_POWER_FAILURES = 2
 # Après une commande marche/arrêt : on relit l'alimentation chaque seconde
 # jusqu'à ce que le moniteur confirme (ou abandon au bout du délai)
 TRANSITION_INTERVAL = 1
 TRANSITION_TIMEOUT  = 60
-TRANSITION_READ_TIMEOUT = 1.0
 # Après un allumage : tout est relu toutes les 2 s le temps que le moniteur démarre
 BOOST_INTERVAL = 2
 BOOST_SECONDS  = 30
@@ -109,6 +111,7 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._skip_until: dict[Query, float] = {}
         self._on_since = 0.0
         self._last_fast = 0.0
+        self._power_failures = 0
         # Commande marche/arrêt en attente de confirmation par le moniteur
         self._target: bool | None = None
         self._transition_until = 0.0
@@ -262,19 +265,24 @@ class PhilipsDLineCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._target = None
 
         try:
-            # Délai court si l'on attend une confirmation ou si le moniteur dort
-            power = await self.client.async_get_power(
-                timeout=TRANSITION_READ_TIMEOUT if transition or not self.reachable else None
-            )
+            # Délai normal même si le moniteur dort : un délai plus court
+            # empêcherait de revoir allumé un moniteur lent à répondre
+            power = await self.client.async_get_power()
         except SICPError as exc:
             if transition:
                 # Moniteur en train de démarrer ou de s'endormir : on garde l'état demandé
+                self._set_interval(now)
+                return self._snapshot()
+            self._power_failures += 1
+            if self.reachable and self._power_failures < MAX_POWER_FAILURES:
+                _LOGGER.debug("Lecture de l'alimentation ratée, état conservé : %s", exc)
                 self._set_interval(now)
                 return self._snapshot()
             self.reachable = False
             self._set_interval(now)
             raise UpdateFailed(f"Le moniteur ne répond pas : {exc}") from exc
 
+        self._power_failures = 0
         was_on = self.power if self.reachable else None
         self.reachable = True
         self.power = power
