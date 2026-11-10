@@ -3,6 +3,15 @@
 Toutes les évolutions notables de l'intégration sont consignées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versions selon [SemVer](https://semver.org/lang/fr/).
 
+## [2.0.3] - 2026-11-10
+
+### Corrigé
+
+- La télévision ne s'affiche plus « éteinte » alors qu'elle est allumée, notamment au démarrage de Home Assistant :
+  - un refus (NACK/NAV) arrivé en retard pour une commande précédente n'est plus pris pour la réponse en cours lorsque le vrai rapport le suit. Avant, il suffisait à afficher l'écran éteint, ou à marquer une commande comme non supportée pendant une heure ;
+  - une seule lecture de l'alimentation sans réponse ne suffit plus : l'écran ne s'affiche éteint qu'au second relevé raté d'affilée. Un moniteur qui devient muet en veille est donc vu éteint 5 s plus tard ;
+  - quand le moniteur ne répondait plus, l'alimentation était relue avec un délai d'1 s seulement : un moniteur plus lent à répondre restait affiché éteint indéfiniment. Le délai normal (2 s) s'applique de nouveau.
+
 ## [2.0.2] - 2026-09-30
 
 ### Corrigé
@@ -104,6 +113,7 @@ Réécriture complète d'après la spécification **SICP 2.09**.
 
 - Version initiale : alimentation, source, volume, sourdine, luminosité et contraste en attributs.
 
+[2.0.3]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Tomdazy/ha-philips-dline-sicp/compare/v1.0.4...v2.0.0
