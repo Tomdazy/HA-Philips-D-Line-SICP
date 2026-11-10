@@ -31,8 +31,11 @@ SLEEP = False
 PREFIX = b""
 # Nombre de Get power qui répondent encore « veille » après un allumage (démarrage lent)
 BOOT_DELAY = 0
+# Délai de réponse par code de commande, en secondes (moniteur lent)
+DELAYS: dict[int, float] = {}
 _booting = 0
 WRITERS: set = set()
+TASKS: set = set()
 
 
 def frame(data: bytes) -> bytes:
@@ -85,6 +88,7 @@ def handle(pkt: bytes) -> bytes:
 
 async def client(reader, writer):
     WRITERS.add(writer)
+    TASKS.add(asyncio.current_task())
     try:
         while True:
             n = (await reader.readexactly(1))[0]
@@ -92,14 +96,18 @@ async def client(reader, writer):
             if SLEEP:
                 LOG.append(pkt)
                 continue
+            if DELAYS.get(pkt[3]):
+                await asyncio.sleep(DELAYS[pkt[3]])
             global PREFIX
             writer.write(PREFIX + handle(pkt))
             PREFIX = b""
             await writer.drain()
-    except asyncio.IncompleteReadError:
+    except (asyncio.IncompleteReadError, ConnectionError):
+        # Client parti (délai dépassé) avant ou pendant la réponse
         pass
     finally:
         WRITERS.discard(writer)
+        TASKS.discard(asyncio.current_task())
         writer.close()
 
 
@@ -111,7 +119,13 @@ async def start(port=0):
 async def stop(server):
     global SLEEP, PREFIX, BOOT_DELAY, _booting
     SLEEP, PREFIX, BOOT_DELAY, _booting = False, b"", 0, 0
+    DELAYS.clear()
     server.close()
     for writer in list(WRITERS):
         writer.close()
+    # Réponses retardées encore en attente (DELAYS)
+    tasks = list(TASKS)
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
     await server.wait_closed()

@@ -205,3 +205,58 @@ async def test_remote_power_on_detected_quickly(hass: HomeAssistant, monitor):
     await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get(tv).state == "on"
     assert hass.states.get(tv).attributes["source"] == "HDMI 1"
+
+
+def _tv(hass: HomeAssistant) -> str:
+    return er.async_get(hass).async_get_entity_id(
+        "media_player", DOMAIN, "philips_dline_127.0.0.1_1"
+    )
+
+
+async def _tick(hass: HomeAssistant, seconds: int) -> None:
+    """Avance l'horloge pour déclencher le prochain relevé et attend sa fin."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=seconds))
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+
+async def test_single_missed_power_read_keeps_tv_on(hass: HomeAssistant, monitor):
+    """Une lecture d'alimentation restée sans réponse ne suffit pas à afficher « éteinte »."""
+    await _setup(hass, monitor)
+    fake_monitor.SLEEP = True
+    await _tick(hass, 6)
+    assert hass.states.get(_tv(hass)).state == "on"
+
+    fake_monitor.SLEEP = False
+    await _tick(hass, 6)
+    assert hass.states.get(_tv(hass)).state == "on"
+
+    # Plus tard, une autre lecture isolée sans réponse : toujours allumée
+    fake_monitor.SLEEP = True
+    await _tick(hass, 6)
+    assert hass.states.get(_tv(hass)).state == "on"
+
+
+async def test_silent_monitor_shown_off_after_two_missed_reads(hass: HomeAssistant, monitor):
+    """Moniteur devenu muet (veille du 55BDL4511D) : « éteinte » au second relevé raté."""
+    await _setup(hass, monitor)
+    fake_monitor.SLEEP = True
+    await _tick(hass, 6)
+    await _tick(hass, 6)
+    assert hass.states.get(_tv(hass)).state == "off"
+
+
+async def test_slow_monitor_seen_on_after_silence(hass: HomeAssistant, monitor):
+    """Moniteur muet au démarrage, puis allumé mais lent à répondre (1,3 s) : vu allumé."""
+    fake_monitor.SLEEP = True
+    await _setup(hass, monitor)
+    assert hass.states.get(_tv(hass)).state == "off"
+
+    fake_monitor.SLEEP = False
+    fake_monitor.DELAYS[0x19] = 1.3
+    await _tick(hass, 6)
+    assert hass.states.get(_tv(hass)).state == "on"

@@ -44,3 +44,11 @@ async def test_resync_after_stale_replies(monitor):
     fake_monitor.PREFIX = b"\x1e" + stale_power * 3
     assert await client.async_get_text(0xA2, b"\x00") == "2.09"
     await client.disconnect()
+
+
+async def test_stale_status_before_report_is_ignored(monitor):
+    """NACK en retard d'une commande précédente, livré juste avant le rapport attendu."""
+    client = PhilipsSICP("127.0.0.1", port=monitor)
+    fake_monitor.PREFIX = fake_monitor.status(0x15)
+    assert await client.async_get_power() is True
+    await client.disconnect()
